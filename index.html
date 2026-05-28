@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Physics 215 — Assignments</title>
+<link rel="stylesheet" href="css/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <span class="logo">Physics 215</span>
+  <span class="subtitle">USAFA</span>
+  <span class="spacer"></span>
+  <span class="user-chip" id="header-name" style="display:none"></span>
+</header>
+
+<!-- ── SCREEN 1: ID Entry ── -->
+<div id="screen-id" class="id-screen">
+  <div class="id-card">
+    <div class="crest">⚡</div>
+    <h1>Physics 215 Assignments</h1>
+    <p>Enter your 10-digit student ID to get started.</p>
+    <div id="id-error" class="alert alert-error" style="display:none"></div>
+    <div class="id-input-group">
+      <input type="text" id="id-input" placeholder="3000000000" maxlength="10"
+             inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <button class="btn btn-primary" id="id-btn" onclick="lookupStudent()">Go</button>
+    </div>
+    <div style="margin-top:12px; font-size:0.78em; color:var(--muted)">
+      <a href="review.html" style="color:var(--blue-lt)">View your past submissions →</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCREEN 2: Assignment List ── -->
+<div id="screen-assignments" style="display:none">
+  <div class="page">
+    <div id="welcome-banner" class="alert alert-info" style="margin-bottom:24px"></div>
+    <h2 style="margin-bottom:4px">Open Assignments</h2>
+    <p style="color:var(--muted); font-size:0.88em; margin-bottom:20px">Click an assignment to open it. Your answers are saved automatically.</p>
+    <div id="assignment-list"></div>
+    <div id="no-assignments" style="display:none; color:var(--muted); font-size:0.9em; padding:20px 0">
+      No open assignments right now. Check back later.
+    </div>
+  </div>
+</div>
+
+<!-- ── SCREEN 3: Assignment Questions ── -->
+<div id="screen-assignment" style="display:none">
+  <div class="page">
+    <button class="btn btn-secondary btn-sm" onclick="showAssignments()" style="margin-bottom:20px">
+      ← Back to assignments
+    </button>
+
+    <div class="card" style="margin-bottom:24px">
+      <div class="card-title" id="asgn-title"></div>
+      <div class="card-meta" id="asgn-meta"></div>
+      <div id="asgn-desc" style="font-size:0.9em; color:var(--muted)"></div>
+    </div>
+
+    <div id="asgn-closed-banner" class="alert alert-warn" style="display:none">
+      This assignment is past due. Your submitted answers are shown below (read-only).
+    </div>
+
+    <div id="progress-wrap" style="margin-bottom:8px">
+      <div style="display:flex; justify-content:space-between; font-size:0.78em; color:var(--muted); margin-bottom:4px">
+        <span id="progress-label">0 of 0 answered</span>
+        <span id="save-status" style="color:var(--green)"></span>
+      </div>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
+    </div>
+
+    <div id="questions-container"></div>
+
+    <div id="submit-section" style="margin-top:24px; display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+      <button class="btn btn-primary" id="submit-btn" onclick="submitAssignment()">
+        Submit Assignment
+      </button>
+      <span id="submit-status" style="font-size:0.85em"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let student = null;       // { student_id, name, section_id }
+let assignments = [];
+let currentAssignment = null;
+let answers = {};         // { q_id: value }
+let saveTimer = null;
+let isSubmitted = false;
+
+// ── Screen helpers ──
+function show(id) {
+  ['screen-id','screen-assignments','screen-assignment'].forEach(s => {
+    document.getElementById(s).style.display = s === id ? '' : 'none';
+  });
+}
+
+// ── ID Lookup ──
+document.getElementById('id-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') lookupStudent();
+});
+
+async function lookupStudent() {
+  const raw = document.getElementById('id-input').value.trim();
+  const errEl = document.getElementById('id-error');
+  errEl.style.display = 'none';
+
+  if (!/^\d{10}$/.test(raw) || !raw.startsWith('3000')) {
+    errEl.textContent = 'Please enter a valid 10-digit student ID starting with 3000.';
+    errEl.style.display = '';
+    return;
+  }
+
+  const btn = document.getElementById('id-btn');
+  btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+
+  const { data, error } = await db
+    .from('students')
+    .select('student_id, name, section_id')
+    .eq('student_id', parseInt(raw))
+    .single();
+
+  btn.innerHTML = 'Go';
+  btn.disabled = false;
+
+  if (error || !data) {
+    errEl.textContent = 'Student ID not found. Please check your ID or contact your instructor.';
+    errEl.style.display = '';
+    return;
+  }
+
+  student = data;
+  document.getElementById('header-name').textContent = student.name;
+  document.getElementById('header-name').style.display = '';
+  document.getElementById('welcome-banner').textContent =
+    `Welcome, ${student.name}! Section ${student.section_id}.`;
+  show('screen-assignments');
+  loadAssignments();
+}
+
+// ── Assignment List ──
+async function loadAssignments() {
+  const listEl = document.getElementById('assignment-list');
+  listEl.innerHTML = '<div style="color:var(--muted); font-size:0.9em">Loading…</div>';
+
+  const now = new Date().toISOString();
+  const { data: asgns, error } = await db
+    .from('assignments')
+    .select('id, title, description, due_date, questions')
+    .eq('is_published', true)
+    .order('due_date', { ascending: true });
+
+  if (error || !asgns?.length) {
+    listEl.innerHTML = '';
+    document.getElementById('no-assignments').style.display = '';
+    return;
+  }
+
+  // Check which ones the student already submitted
+  const { data: existing } = await db
+    .from('responses')
+    .select('assignment_id, updated_at')
+    .eq('student_id', student.student_id);
+  const submittedMap = {};
+  (existing || []).forEach(r => submittedMap[r.assignment_id] = r.updated_at);
+
+  assignments = asgns;
+  listEl.innerHTML = '';
+  document.getElementById('no-assignments').style.display = 'none';
+
+  asgns.forEach(a => {
+    const due = new Date(a.due_date);
+    const isPast = due < new Date();
+    const qCount = a.questions?.length ?? 0;
+    const submitted = submittedMap[a.id];
+    const totalPts = (a.questions || []).reduce((s, q) => s + (q.points || 0), 0);
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cursor = 'pointer';
+    card.style.transition = 'box-shadow 0.15s';
+    card.onmouseenter = () => card.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+    card.onmouseleave = () => card.style.boxShadow = '';
+    card.onclick = () => openAssignment(a);
+
+    const deadlineClass = isPast ? 'overdue' : (due - new Date() < 86400000 ? 'soon' : '');
+    const deadlineText = isPast
+      ? `Closed ${due.toLocaleDateString()}`
+      : `Due ${due.toLocaleDateString()} ${due.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px">
+        <div>
+          <div class="card-title">${esc(a.title)}</div>
+          <div class="card-meta">${qCount} question${qCount !== 1 ? 's' : ''} · ${totalPts} pts</div>
+          ${a.description ? `<div style="font-size:0.85em;color:var(--muted)">${esc(a.description)}</div>` : ''}
+        </div>
+        <div style="text-align:right; flex-shrink:0">
+          <div class="deadline ${deadlineClass}">${deadlineText}</div>
+          ${submitted
+            ? `<div style="font-size:0.78em;color:var(--green);margin-top:4px">✓ Submitted</div>`
+            : `<div style="font-size:0.78em;color:var(--muted);margin-top:4px">Not submitted</div>`}
+        </div>
+      </div>
+    `;
+    listEl.appendChild(card);
+  });
+}
+
+function showAssignments() {
+  show('screen-assignments');
+  currentAssignment = null;
+  loadAssignments();
+}
+
+// ── Open Assignment ──
+async function openAssignment(a) {
+  currentAssignment = a;
+  answers = {};
+  isSubmitted = false;
+
+  document.getElementById('asgn-title').textContent = a.title;
+  const due = new Date(a.due_date);
+  const isPast = due < new Date();
+  document.getElementById('asgn-meta').textContent =
+    `Due: ${due.toLocaleDateString()} ${due.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+  document.getElementById('asgn-desc').textContent = a.description || '';
+
+  const closedBanner = document.getElementById('asgn-closed-banner');
+  closedBanner.style.display = isPast ? '' : 'none';
+
+  const submitSection = document.getElementById('submit-section');
+  submitSection.style.display = isPast ? 'none' : '';
+
+  // Load existing response if any
+  const { data: existing } = await db
+    .from('responses')
+    .select('answers')
+    .eq('student_id', student.student_id)
+    .eq('assignment_id', a.id)
+    .single();
+
+  if (existing?.answers) answers = existing.answers;
+
+  renderQuestions(a.questions, isPast);
+  show('screen-assignment');
+  updateProgress();
+}
+
+// ── Render Questions ──
+function renderQuestions(questions, readOnly) {
+  const container = document.getElementById('questions-container');
+  container.innerHTML = '';
+
+  questions.forEach((q, idx) => {
+    const block = document.createElement('div');
+    block.className = 'question-block';
+    block.id = `qblock-${q.id}`;
+
+    const pts = q.points === 1 ? '1 pt' : `${q.points} pts`;
+
+    let inputHtml = '';
+    const val = answers[q.id] ?? '';
+
+    if (q.type === 'multiple_choice') {
+      const opts = (q.options || []).map((opt, i) => {
+        const checked = val === opt ? 'checked' : '';
+        const sel = val === opt ? 'selected' : '';
+        return `
+          <label class="mc-option ${sel}" id="mc-${q.id}-${i}">
+            <input type="radio" name="mc-${q.id}" value="${esc(opt)}"
+              ${checked} ${readOnly ? 'disabled' : ''}
+              onchange="recordAnswer('${q.id}', this.value)">
+            ${esc(opt)}
+          </label>`;
+      }).join('');
+      inputHtml = `<div class="mc-options">${opts}</div>`;
+
+    } else if (q.type === 'numerical') {
+      inputHtml = `
+        <input type="number" step="any" value="${esc(String(val))}"
+          placeholder="Enter a number" ${readOnly ? 'readonly' : ''}
+          oninput="recordAnswer('${q.id}', this.value)"
+          style="max-width:220px">
+        <div class="field-hint">Numerical answer — units not required here.</div>`;
+
+    } else {
+      inputHtml = `
+        <textarea placeholder="Write your response here…" ${readOnly ? 'readonly' : ''}
+          oninput="recordAnswer('${q.id}', this.value)"
+          id="ta-${q.id}">${esc(val)}</textarea>`;
+    }
+
+    block.innerHTML = `
+      <div class="question-number">Question ${idx + 1}</div>
+      <div class="question-text">${esc(q.text)}</div>
+      <div class="question-pts">${pts}</div>
+      ${inputHtml}
+    `;
+    container.appendChild(block);
+
+    // Mark answered state
+    if (val && String(val).trim()) block.classList.add('answered');
+  });
+}
+
+// ── Record Answer & Auto-save ──
+function recordAnswer(qId, value) {
+  answers[qId] = value;
+  updateProgress();
+
+  // Mark block answered
+  const block = document.getElementById(`qblock-${qId}`);
+  if (block) {
+    const trimmed = String(value).trim();
+    block.classList.toggle('answered', trimmed.length > 0);
+  }
+
+  // Debounced auto-save
+  clearTimeout(saveTimer);
+  document.getElementById('save-status').textContent = 'Saving…';
+  saveTimer = setTimeout(autoSave, 1200);
+}
+
+async function autoSave() {
+  if (!student || !currentAssignment) return;
+  const { error } = await db.from('responses').upsert({
+    student_id: student.student_id,
+    assignment_id: currentAssignment.id,
+    answers,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'student_id,assignment_id' });
+
+  const statusEl = document.getElementById('save-status');
+  statusEl.textContent = error ? '⚠ Save failed' : '✓ Saved';
+  setTimeout(() => { statusEl.textContent = ''; }, 2000);
+}
+
+// ── Progress ──
+function updateProgress() {
+  if (!currentAssignment) return;
+  const qs = currentAssignment.questions || [];
+  const answered = qs.filter(q => answers[q.id] && String(answers[q.id]).trim()).length;
+  document.getElementById('progress-label').textContent = `${answered} of ${qs.length} answered`;
+  document.getElementById('progress-bar').style.width = qs.length
+    ? `${Math.round(answered / qs.length * 100)}%` : '0%';
+}
+
+// ── Submit ──
+async function submitAssignment() {
+  const btn = document.getElementById('submit-btn');
+  const status = document.getElementById('submit-status');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Submitting…';
+
+  const { error } = await db.from('responses').upsert({
+    student_id: student.student_id,
+    assignment_id: currentAssignment.id,
+    answers,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'student_id,assignment_id' });
+
+  if (error) {
+    status.textContent = '⚠ Submission failed — please try again.';
+    status.style.color = 'var(--red)';
+    btn.disabled = false;
+    btn.textContent = 'Submit Assignment';
+    return;
+  }
+
+  btn.textContent = '✓ Submitted';
+  status.textContent = 'Your answers have been saved. You can edit them until the deadline.';
+  status.style.color = 'var(--green)';
+  isSubmitted = true;
+}
+
+// ── Utility ──
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

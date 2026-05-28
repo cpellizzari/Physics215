@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Physics 215 — Admin</title>
+<link rel="stylesheet" href="css/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<style>
+  /* Admin-specific styles */
+  .tab-bar {
+    display: flex; gap: 2px; border-bottom: 2px solid var(--border);
+    margin-bottom: 24px; overflow-x: auto; flex-shrink: 0;
+  }
+  .tab-btn {
+    padding: 10px 20px; border: none; background: none; cursor: pointer;
+    font-size: 0.88em; font-weight: 600; color: var(--muted);
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    white-space: nowrap; transition: color 0.15s;
+  }
+  .tab-btn:hover { color: var(--blue); }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Grading table */
+  .grade-cell { min-width: 80px; }
+  .score-input {
+    width: 64px; text-align: center; padding: 4px 6px;
+    border: 1px solid var(--border); border-radius: 4px; font-size: 0.88em;
+  }
+  .score-input.suggested { background: #fef9c3; border-color: #fde047; }
+  .score-input.modified  { background: #dbeafe; border-color: #93c5fd; }
+  .feedback-input {
+    width: 100%; min-width: 180px; font-size: 0.82em; padding: 4px 6px;
+    border: 1px solid var(--border); border-radius: 4px; resize: vertical;
+    min-height: 48px;
+  }
+
+  /* Roster upload */
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 40px; text-align: center; color: var(--muted);
+    cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--blue-lt); background: #eff6ff;
+  }
+  .drop-zone input[type="file"] { display: none; }
+
+  /* Question builder */
+  .q-item {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 12px; background: #fafbfc;
+  }
+  .q-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .q-handle { cursor: grab; color: var(--muted); font-size: 1.2em; }
+  .q-type-badge {
+    font-size: 0.72em; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; padding: 2px 8px; border-radius: 999px;
+    background: #dbeafe; color: #1e40af;
+  }
+  .q-type-badge.numerical { background: #dcfce7; color: #166534; }
+  .q-type-badge.multiple_choice { background: #fef9c3; color: #854d0e; }
+
+  /* Section grid */
+  .section-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;
+  }
+  .section-card {
+    border: 1px solid var(--border); border-radius: 6px; padding: 12px;
+    font-size: 0.85em;
+  }
+  .section-id { font-weight: 700; font-size: 1em; color: var(--blue); margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <span class="logo">Physics 215</span>
+  <span class="subtitle">Admin</span>
+  <span class="spacer"></span>
+  <span class="user-chip" id="header-name" style="display:none"></span>
+  <button class="btn btn-secondary btn-sm" id="logout-btn" onclick="logout()" style="display:none; margin-left:8px">Log out</button>
+</header>
+
+<!-- ── LOGIN ── -->
+<div id="screen-login" class="id-screen">
+  <div class="id-card">
+    <div class="crest">🔐</div>
+    <h1>Instructor Login</h1>
+    <p>Sign in with your USAFA email and password.</p>
+    <div id="login-error" class="alert alert-error" style="display:none"></div>
+    <div class="field" style="text-align:left">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@afacademy.af.edu" autocomplete="email">
+    </div>
+    <div class="field" style="text-align:left">
+      <label>Password</label>
+      <input type="password" id="login-password" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="login()">Sign In</button>
+  </div>
+</div>
+
+<!-- ── MAIN ADMIN ── -->
+<div id="screen-admin" style="display:none">
+  <div class="page-wide">
+
+    <div class="tab-bar" id="tab-bar"></div>
+
+    <!-- GRADE TAB -->
+    <div class="tab-panel" id="tab-grade">
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:20px">
+        <div class="field" style="margin:0; min-width:200px">
+          <label>Assignment</label>
+          <select id="grade-asgn-select" onchange="loadGradingView()">
+            <option value="">— select —</option>
+          </select>
+        </div>
+        <div class="field" style="margin:0; min-width:150px" id="section-filter-wrap">
+          <label>Section</label>
+          <select id="grade-section-select" onchange="loadGradingView()">
+            <option value="">— all my sections —</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="grade-legend" class="alert alert-info" style="margin-bottom:16px; display:none">
+        <strong>Legend:</strong>
+        <span style="background:#fef9c3;padding:2px 8px;border-radius:4px;margin:0 4px">Yellow</span> = Claude suggested (unreviewed) &nbsp;
+        <span style="background:#dbeafe;padding:2px 8px;border-radius:4px;margin:0 4px">Blue</span> = Manually edited
+      </div>
+
+      <div id="grade-container">
+        <div style="color:var(--muted); font-size:0.9em">Select an assignment to begin grading.</div>
+      </div>
+
+      <div id="grade-actions" style="display:none; margin-top:20px; display:none; gap:12px; flex-wrap:wrap; align-items:center">
+        <button class="btn btn-primary" onclick="saveGrades()">💾 Save Progress</button>
+        <button class="btn btn-danger" onclick="finalizeGrades()">✅ Finalize &amp; Publish to Students</button>
+        <span id="grade-save-status" style="font-size:0.85em; color:var(--green)"></span>
+      </div>
+    </div>
+
+    <!-- ASSIGNMENTS TAB (director only) -->
+    <div class="tab-panel" id="tab-assignments">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px">
+        <h3>Assignments</h3>
+        <button class="btn btn-primary" onclick="showNewAssignment()">+ New Assignment</button>
+      </div>
+      <div id="asgn-list-admin"></div>
+
+      <!-- Assignment editor (hidden until new/edit clicked) -->
+      <div id="asgn-editor" style="display:none">
+        <div class="card">
+          <div class="card-title" id="editor-title-label">New Assignment</div>
+          <div style="height:1px; background:var(--border); margin:16px 0"></div>
+
+          <div class="field">
+            <label>Title</label>
+            <input type="text" id="asgn-title-in" placeholder="Preflight 1">
+          </div>
+          <div class="field">
+            <label>Description (shown to students)</label>
+            <textarea id="asgn-desc-in" rows="2" placeholder="Complete before Lesson 1."></textarea>
+          </div>
+          <div style="display:flex; gap:16px; flex-wrap:wrap">
+            <div class="field" style="flex:1; min-width:180px">
+              <label>Due Date &amp; Time</label>
+              <input type="datetime-local" id="asgn-due-in">
+            </div>
+            <div class="field" style="flex:1; min-width:180px">
+              <label>Reference Textbook PDF (filename only)</label>
+              <input type="text" id="asgn-pdf-in" placeholder="serway_ch23.pdf">
+            </div>
+            <div class="field" style="flex:1; min-width:140px">
+              <label>Pages</label>
+              <input type="text" id="asgn-pages-in" placeholder="45-52, 60">
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:20px 0 12px">
+            <strong style="font-size:0.9em">Questions</strong>
+            <div style="display:flex; gap:8px">
+              <button class="btn btn-secondary btn-sm" onclick="addQuestion('free_response')">+ Free Response</button>
+              <button class="btn btn-secondary btn-sm" onclick="addQuestion('numerical')">+ Numerical</button>
+              <button class="btn btn-secondary btn-sm" onclick="addQuestion('multiple_choice')">+ Multiple Choice</button>
+            </div>
+          </div>
+
+          <div id="question-builder"></div>
+
+          <div style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; align-items:center">
+            <button class="btn btn-secondary" onclick="cancelEditor()">Cancel</button>
+            <button class="btn btn-secondary" onclick="saveAssignment(false)">Save Draft</button>
+            <button class="btn btn-primary" onclick="saveAssignment(true)">Save &amp; Publish</button>
+            <span id="editor-status" style="font-size:0.82em; color:var(--green)"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROSTER TAB (director only) -->
+    <div class="tab-panel" id="tab-roster">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px">
+        <h3>Student Roster</h3>
+        <div id="roster-count" style="color:var(--muted); font-size:0.88em"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">Upload Roster CSV</div>
+        <div class="card-meta">Required columns: <code>student_id</code>, <code>name</code>, <code>section</code></div>
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('csv-file').click()"
+             ondragover="event.preventDefault(); this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleDrop(event)">
+          <input type="file" id="csv-file" accept=".csv" onchange="handleCsvFile(this.files[0])">
+          <div style="font-size:1.4em; margin-bottom:8px">📄</div>
+          <div style="font-weight:600">Click to upload or drag & drop</div>
+          <div style="font-size:0.82em; margin-top:4px">CSV file · student_id, name, section</div>
+        </div>
+
+        <div id="csv-preview" style="display:none; margin-top:16px">
+          <div id="csv-preview-info" class="alert alert-info" style="margin-bottom:12px"></div>
+          <div class="table-wrap" id="csv-preview-table"></div>
+          <div style="margin-top:12px; display:flex; gap:10px">
+            <button class="btn btn-primary" onclick="commitRoster()">Upload to Database</button>
+            <button class="btn btn-secondary" onclick="cancelCsv()">Cancel</button>
+            <span id="roster-upload-status" style="font-size:0.82em; color:var(--green)"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="roster-table-wrap">
+        <div class="table-wrap" id="roster-table"></div>
+      </div>
+    </div>
+
+    <!-- SECTIONS TAB (director only) -->
+    <div class="tab-panel" id="tab-sections">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px">
+        <h3>Sections &amp; Instructors</h3>
+        <button class="btn btn-secondary btn-sm" onclick="loadSections()">↻ Refresh</button>
+      </div>
+      <p style="color:var(--muted); font-size:0.88em; margin-bottom:20px">
+        Assign an instructor to each section. Sections are created automatically when students are uploaded.
+        Add new instructor accounts in the Supabase Auth dashboard, then register them below.
+      </p>
+
+      <div id="sections-grid" class="section-grid"></div>
+
+      <div class="card" style="margin-top:24px">
+        <div class="card-title">Register New Instructor</div>
+        <div class="card-meta">First create their account in Supabase Auth dashboard, then paste their UUID here.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end">
+          <div class="field" style="margin:0; flex:1; min-width:200px">
+            <label>Name</label>
+            <input type="text" id="new-instructor-name" placeholder="Lt Col Smith">
+          </div>
+          <div class="field" style="margin:0; flex:2; min-width:280px">
+            <label>Supabase UUID</label>
+            <input type="text" id="new-instructor-uuid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+          </div>
+          <button class="btn btn-primary" onclick="registerInstructor()">Register</button>
+        </div>
+        <div id="instructor-reg-status" style="margin-top:8px; font-size:0.82em; color:var(--green)"></div>
+      </div>
+    </div>
+
+    <!-- EXPORT TAB -->
+    <div class="tab-panel" id="tab-export">
+      <h3 style="margin-bottom:16px">Export Grades to Blackboard</h3>
+      <div class="card">
+        <div class="card-title">Blackboard Grade Import CSV</div>
+        <div class="card-meta">One column per finalized assignment, sorted by Student ID. Ready to upload to Blackboard.</div>
+        <div id="export-scope-note" class="alert alert-info" style="margin-bottom:16px"></div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+          <button class="btn btn-primary" onclick="exportBlackboard()">⬇ Download CSV</button>
+          <span id="export-status" style="font-size:0.82em; color:var(--muted)"></span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-wide -->
+</div><!-- /screen-admin -->
+
+<script>
+// ── Global state ──
+let currentUser = null;    // Supabase auth user
+let instructor = null;     // { id, name, is_director }
+let mySections = [];       // section IDs this instructor teaches
+let allInstructors = [];
+let pendingRoster = [];    // parsed CSV rows before commit
+let editingAssignment = null; // null = new
+let gradeData = {};        // { student_id: { q_id: {score, feedback, modified} } }
+let gradeAssignment = null;
+
+// ── Auth ──
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+
+  if (!email || !pass) {
+    errEl.textContent = 'Please enter your email and password.';
+    errEl.style.display = '';
+    return;
+  }
+
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    errEl.textContent = 'Login failed: ' + error.message;
+    errEl.style.display = '';
+    return;
+  }
+  currentUser = data.user;
+  await initAdmin();
+}
+
+async function logout() {
+  await db.auth.signOut();
+  location.reload();
+}
+
+async function initAdmin() {
+  // Get instructor record
+  const { data, error } = await db
+    .from('instructors')
+    .select('id, name, is_director')
+    .eq('id', currentUser.id)
+    .single();
+
+  if (error || !data) {
+    document.getElementById('login-error').textContent =
+      'Your account is not registered as an instructor. Contact the course director.';
+    document.getElementById('login-error').style.display = '';
+    await db.auth.signOut();
+    return;
+  }
+
+  instructor = data;
+  document.getElementById('header-name').textContent =
+    instructor.name + (instructor.is_director ? ' · Director' : '');
+  document.getElementById('header-name').style.display = '';
+  document.getElementById('logout-btn').style.display = '';
+
+  // Get my sections
+  const { data: sects } = await db
+    .from('sections')
+    .select('id')
+    .eq('instructor_id', currentUser.id);
+  mySections = (sects || []).map(s => s.id);
+
+  buildTabs();
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-admin').style.display = '';
+}
+
+// Check if already logged in on page load
+(async () => {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    await initAdmin();
+  }
+})();
+
+// ── Tabs ──
+function buildTabs() {
+  const bar = document.getElementById('tab-bar');
+  bar.innerHTML = '';
+
+  const tabs = [
+    { id: 'grade', label: 'Grade', always: true },
+    { id: 'assignments', label: 'Assignments', directorOnly: true },
+    { id: 'roster', label: 'Roster', directorOnly: true },
+    { id: 'sections', label: 'Sections', directorOnly: true },
+    { id: 'export', label: 'Export', always: true },
+  ];
+
+  tabs.forEach(t => {
+    if (t.directorOnly && !instructor.is_director) return;
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn';
+    btn.textContent = t.label;
+    btn.dataset.tab = t.id;
+    btn.onclick = () => switchTab(t.id);
+    bar.appendChild(btn);
+  });
+
+  switchTab('grade');
+}
+
+function switchTab(id) {
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === id));
+  document.querySelectorAll('.tab-panel').forEach(p =>
+    p.classList.toggle('active', p.id === 'tab-' + id));
+
+  // Lazy-load tab content
+  if (id === 'grade')        initGradeTab();
+  if (id === 'assignments')  loadAssignmentsList();
+  if (id === 'roster')       loadRosterTable();
+  if (id === 'sections')     loadSections();
+  if (id === 'export')       initExportTab();
+}
+
+// ═══════════════════════════════════════════════════
+// GRADE TAB
+// ═══════════════════════════════════════════════════
+async function initGradeTab() {
+  // Populate assignment select
+  const sel = document.getElementById('grade-asgn-select');
+  const current = sel.value;
+  const { data: asgns } = await db
+    .from('assignments')
+    .select('id, title')
+    .order('created_at', { ascending: false });
+  sel.innerHTML = '<option value="">— select assignment —</option>';
+  (asgns || []).forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.id; opt.textContent = a.title;
+    if (a.id === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  // Populate section filter
+  const sectSel = document.getElementById('grade-section-select');
+  sectSel.innerHTML = '<option value="">— all my sections —</option>';
+  mySections.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sectSel.appendChild(opt);
+  });
+
+  if (current) loadGradingView();
+}
+
+async function loadGradingView() {
+  const asgnId = document.getElementById('grade-asgn-select').value;
+  const sectionFilter = document.getElementById('grade-section-select').value;
+  const container = document.getElementById('grade-container');
+  const actionsEl = document.getElementById('grade-actions');
+
+  if (!asgnId) { container.innerHTML = '<div style="color:var(--muted);font-size:0.9em">Select an assignment to begin grading.</div>'; actionsEl.style.display='none'; return; }
+
+  container.innerHTML = '<div style="color:var(--muted);font-size:0.9em">Loading…</div>';
+
+  // Fetch assignment
+  const { data: asgn } = await db.from('assignments').select('*').eq('id', asgnId).single();
+  gradeAssignment = asgn;
+  if (!asgn) { container.innerHTML = '<div class="alert alert-error">Assignment not found.</div>'; return; }
+
+  // Fetch students in my sections
+  let studentQuery = db.from('students').select('student_id, name, section_id').order('name');
+  if (sectionFilter) {
+    studentQuery = studentQuery.eq('section_id', sectionFilter);
+  } else if (!instructor.is_director) {
+    studentQuery = studentQuery.in('section_id', mySections.length ? mySections : ['__none__']);
+  }
+  const { data: students } = await studentQuery;
+  if (!students?.length) { container.innerHTML = '<div class="alert alert-warn">No students found for your sections.</div>'; actionsEl.style.display='none'; return; }
+
+  const studentIds = students.map(s => s.student_id);
+
+  // Fetch responses
+  const { data: responses } = await db.from('responses').select('student_id, answers')
+    .eq('assignment_id', asgnId).in('student_id', studentIds);
+  const responseMap = {};
+  (responses || []).forEach(r => responseMap[r.student_id] = r.answers || {});
+
+  // Fetch scores
+  const { data: scores } = await db.from('scores').select('student_id, question_scores, is_finalized')
+    .eq('assignment_id', asgnId).in('student_id', studentIds);
+  const scoreMap = {};
+  (scores || []).forEach(s => scoreMap[s.student_id] = { qs: s.question_scores || {}, finalized: s.is_finalized });
+
+  // Build in-memory gradeData
+  gradeData = {};
+  students.forEach(st => {
+    gradeData[st.student_id] = {};
+    (asgn.questions || []).forEach(q => {
+      const saved = scoreMap[st.student_id]?.qs[q.id];
+      gradeData[st.student_id][q.id] = {
+        score: saved?.score ?? q.points,  // default full credit
+        feedback: saved?.feedback ?? '',
+        isSuggested: saved === undefined,  // yellow if Claude hasn't written yet
+        modified: false
+      };
+    });
+  });
+
+  // Render
+  document.getElementById('grade-legend').style.display = '';
+  renderGradeTable(asgn, students, responseMap, scoreMap);
+  actionsEl.style.display = 'flex';
+}
+
+function renderGradeTable(asgn, students, responseMap, scoreMap) {
+  const container = document.getElementById('grade-container');
+  const qs = asgn.questions || [];
+
+  let html = '<div class="table-wrap"><table><thead><tr>';
+  html += '<th>Student</th><th>Section</th>';
+  qs.forEach((q, i) => html += `<th class="grade-cell">Q${i+1}<br><small style="font-weight:400">${q.points}pts</small></th>`);
+  html += '<th>Total</th></tr></thead><tbody>';
+
+  students.forEach(st => {
+    const answers = responseMap[st.student_id] || {};
+    const sf = scoreMap[st.student_id];
+    const finalized = sf?.finalized;
+
+    html += `<tr id="row-${st.student_id}">`;
+    html += `<td><strong>${esc(st.name)}</strong>${finalized ? ' <span class="score-badge full" style="font-size:0.7em">Finalized</span>' : ''}</td>`;
+    html += `<td>${esc(st.section_id)}</td>`;
+
+    let total = 0;
+    qs.forEach(q => {
+      const gd = gradeData[st.student_id][q.id];
+      const answerText = answers[q.id] ?? '';
+      const hasAnswer = String(answerText).trim().length > 0;
+      const cls = gd.modified ? 'score-input modified' : gd.isSuggested ? 'score-input suggested' : 'score-input';
+      total += Number(gd.score) || 0;
+
+      html += `<td class="grade-cell">
+        <input type="number" min="0" max="${q.points}" step="0.1"
+          class="${cls}" value="${gd.score}"
+          ${finalized ? 'readonly' : ''}
+          onchange="updateScore(${st.student_id},'${q.id}',this)"
+          title="${esc(answerText).slice(0,200)}">
+        ${!finalized ? `<textarea class="feedback-input" placeholder="Feedback…"
+          onchange="updateFeedback(${st.student_id},'${q.id}',this)"
+        >${esc(gd.feedback)}</textarea>` : `<div style="font-size:0.78em;color:var(--muted);margin-top:4px">${esc(gd.feedback)}</div>`}
+        ${hasAnswer
+          ? `<details style="margin-top:4px"><summary style="font-size:0.72em;cursor:pointer;color:var(--muted)">View answer</summary>
+              <div style="font-size:0.78em;background:#f8fafc;border:1px solid var(--border);border-radius:4px;padding:6px;margin-top:4px;max-height:80px;overflow:auto;white-space:pre-wrap">${esc(String(answerText))}</div></details>`
+          : `<div style="font-size:0.72em;color:var(--red);margin-top:2px">No answer</div>`}
+      </td>`;
+    });
+
+    html += `<td style="font-weight:700;font-size:0.95em" id="total-${st.student_id}">${total.toFixed(1)}</td>`;
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function updateScore(studentId, qId, input) {
+  const gd = gradeData[studentId][qId];
+  gd.score = parseFloat(input.value) || 0;
+  gd.modified = true;
+  input.className = 'score-input modified';
+  // Recompute total
+  const qs = gradeAssignment.questions || [];
+  const total = qs.reduce((s, q) => s + (Number(gradeData[studentId][q.id]?.score) || 0), 0);
+  const totalEl = document.getElementById(`total-${studentId}`);
+  if (totalEl) totalEl.textContent = total.toFixed(1);
+}
+
+function updateFeedback(studentId, qId, textarea) {
+  gradeData[studentId][qId].feedback = textarea.value;
+  gradeData[studentId][qId].modified = true;
+}
+
+async function saveGrades() {
+  const statusEl = document.getElementById('grade-save-status');
+  statusEl.textContent = 'Saving…';
+  const qs = gradeAssignment.questions || [];
+  const maxTotal = qs.reduce((s, q) => s + (q.points || 0), 0);
+
+  const upserts = Object.entries(gradeData).map(([sid, qMap]) => {
+    const questionScores = {};
+    let total = 0;
+    qs.forEach(q => {
+      const gd = qMap[q.id];
+      questionScores[q.id] = { score: gd.score, max: q.points, feedback: gd.feedback };
+      total += Number(gd.score) || 0;
+    });
+    return {
+      student_id: parseInt(sid),
+      assignment_id: gradeAssignment.id,
+      question_scores: questionScores,
+      total_score: Math.round(total * 100) / 100,
+      max_total: maxTotal,
+      is_finalized: false,
+      graded_by: currentUser.id,
+      graded_at: new Date().toISOString()
+    };
+  });
+
+  const { error } = await db.from('scores').upsert(upserts, { onConflict: 'student_id,assignment_id' });
+  statusEl.textContent = error ? '⚠ Save failed: ' + error.message : '✓ Saved';
+  setTimeout(() => statusEl.textContent = '', 3000);
+}
+
+async function finalizeGrades() {
+  if (!confirm('Finalize grades? Students will be able to see their scores and feedback immediately.')) return;
+  await saveGrades();
+
+  const { error } = await db.from('scores')
+    .update({ is_finalized: true })
+    .eq('assignment_id', gradeAssignment.id)
+    .in('student_id', Object.keys(gradeData).map(Number));
+
+  const statusEl = document.getElementById('grade-save-status');
+  statusEl.textContent = error ? '⚠ Finalize failed' : '✅ Grades published to students!';
+  setTimeout(() => loadGradingView(), 1500);
+}
+
+// ═══════════════════════════════════════════════════
+// ASSIGNMENTS TAB
+// ═══════════════════════════════════════════════════
+async function loadAssignmentsList() {
+  const listEl = document.getElementById('asgn-list-admin');
+  listEl.innerHTML = '<div style="color:var(--muted);font-size:0.9em">Loading…</div>';
+  document.getElementById('asgn-editor').style.display = 'none';
+
+  const { data: asgns } = await db.from('assignments').select('*').order('due_date');
+  if (!asgns?.length) { listEl.innerHTML = '<div style="color:var(--muted)">No assignments yet. Click "+ New Assignment" to create one.</div>'; return; }
+
+  listEl.innerHTML = '';
+  asgns.forEach(a => {
+    const due = new Date(a.due_date);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="card-title">${esc(a.title)}</div>
+          <div class="card-meta">${a.questions?.length ?? 0} questions · Due ${due.toLocaleDateString()} · ${a.is_published ? '<span style="color:var(--green)">Published</span>' : '<span style="color:var(--muted)">Draft</span>'}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn btn-secondary btn-sm" onclick="editAssignment('${a.id}')">Edit</button>
+          <button class="btn btn-secondary btn-sm" onclick="togglePublish('${a.id}',${a.is_published})">${a.is_published ? 'Unpublish' : 'Publish'}</button>
+        </div>
+      </div>`;
+    listEl.appendChild(card);
+  });
+}
+
+let questionItems = []; // array of {id, type, text, points, options, correct_answer, expected_response}
+
+function showNewAssignment() {
+  editingAssignment = null;
+  questionItems = [];
+  document.getElementById('editor-title-label').textContent = 'New Assignment';
+  document.getElementById('asgn-title-in').value = '';
+  document.getElementById('asgn-desc-in').value = '';
+  document.getElementById('asgn-due-in').value = '';
+  document.getElementById('asgn-pdf-in').value = '';
+  document.getElementById('asgn-pages-in').value = '';
+  document.getElementById('question-builder').innerHTML = '';
+  document.getElementById('asgn-list-admin').style.display = 'none';
+  document.getElementById('asgn-editor').style.display = '';
+}
+
+async function editAssignment(id) {
+  const { data: a } = await db.from('assignments').select('*').eq('id', id).single();
+  if (!a) return;
+  editingAssignment = a;
+  questionItems = JSON.parse(JSON.stringify(a.questions || []));
+
+  document.getElementById('editor-title-label').textContent = 'Edit: ' + a.title;
+  document.getElementById('asgn-title-in').value = a.title;
+  document.getElementById('asgn-desc-in').value = a.description || '';
+  const due = new Date(a.due_date);
+  document.getElementById('asgn-due-in').value = due.toISOString().slice(0,16);
+  document.getElementById('asgn-pdf-in').value = a.reference_pdf || '';
+  document.getElementById('asgn-pages-in').value = a.reference_pages || '';
+  document.getElementById('asgn-list-admin').style.display = 'none';
+  document.getElementById('asgn-editor').style.display = '';
+  renderQuestionBuilder();
+}
+
+function cancelEditor() {
+  document.getElementById('asgn-editor').style.display = 'none';
+  document.getElementById('asgn-list-admin').style.display = '';
+}
+
+function addQuestion(type) {
+  const id = 'q' + (questionItems.length + 1);
+  questionItems.push({ id, type, text: '', points: 1,
+    options: type === 'multiple_choice' ? ['A. ', 'B. ', 'C. ', 'D. '] : undefined,
+    correct_answer: '', expected_response: '' });
+  renderQuestionBuilder();
+}
+
+function removeQuestion(idx) {
+  questionItems.splice(idx, 1);
+  renderQuestionBuilder();
+}
+
+function renderQuestionBuilder() {
+  const container = document.getElementById('question-builder');
+  container.innerHTML = '';
+  if (!questionItems.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:0.88em;padding:12px 0">No questions yet. Add one above.</div>';
+    return;
+  }
+  questionItems.forEach((q, idx) => {
+    const div = document.createElement('div');
+    div.className = 'q-item';
+    const badgeCls = q.type === 'numerical' ? 'numerical' : q.type === 'multiple_choice' ? 'multiple_choice' : '';
+    let extra = '';
+    if (q.type === 'multiple_choice') {
+      const opts = (q.options || ['A. ','B. ','C. ','D. ']).map((o, oi) =>
+        `<input type="text" value="${esc(o)}" placeholder="Option ${oi+1}"
+          oninput="questionItems[${idx}].options[${oi}]=this.value"
+          style="margin-bottom:4px">`).join('');
+      extra = `
+        <div class="field"><label>Answer Options</label>${opts}</div>
+        <div class="field"><label>Correct Answer</label>
+          <input type="text" value="${esc(q.correct_answer||'')}" placeholder="e.g. A. Speed"
+            oninput="questionItems[${idx}].correct_answer=this.value" style="max-width:200px"></div>`;
+    } else if (q.type === 'numerical') {
+      extra = `
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="field" style="flex:1;min-width:120px"><label>Correct Answer</label>
+            <input type="number" step="any" value="${q.correct_answer||''}"
+              oninput="questionItems[${idx}].correct_answer=this.value" placeholder="9.81"></div>
+          <div class="field" style="flex:1;min-width:120px"><label>Tolerance (fraction)</label>
+            <input type="number" step="0.01" min="0" max="1" value="${q.tolerance||0.05}"
+              oninput="questionItems[${idx}].tolerance=parseFloat(this.value)" placeholder="0.05"></div>
+        </div>`;
+    } else {
+      extra = `
+        <div class="field"><label>Expected Response Hint (for grading agent — not shown to students)</label>
+          <textarea rows="2" placeholder="Key concepts to look for…"
+            oninput="questionItems[${idx}].expected_response=this.value">${esc(q.expected_response||'')}</textarea></div>`;
+    }
+    div.innerHTML = `
+      <div class="q-item-header">
+        <span class="q-handle">⠿</span>
+        <span style="font-weight:700;font-size:0.9em">Q${idx+1}</span>
+        <span class="q-type-badge ${badgeCls}">${q.type.replace('_',' ')}</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-secondary btn-sm" onclick="removeQuestion(${idx})">Remove</button>
+      </div>
+      <div class="field"><label>Question Text</label>
+        <textarea rows="2" oninput="questionItems[${idx}].text=this.value">${esc(q.text)}</textarea></div>
+      <div class="field" style="max-width:140px"><label>Points</label>
+        <input type="number" min="0.1" step="0.1" value="${q.points}"
+          oninput="questionItems[${idx}].points=parseFloat(this.value)||1"></div>
+      ${extra}`;
+    container.appendChild(div);
+  });
+}
+
+async function saveAssignment(publish) {
+  const title = document.getElementById('asgn-title-in').value.trim();
+  const due = document.getElementById('asgn-due-in').value;
+  if (!title || !due) {
+    alert('Title and due date are required.');
+    return;
+  }
+  const slug = editingAssignment?.id ||
+    title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+
+  const row = {
+    id: slug, title,
+    description: document.getElementById('asgn-desc-in').value.trim() || null,
+    due_date: new Date(due).toISOString(),
+    questions: questionItems,
+    reference_pdf: document.getElementById('asgn-pdf-in').value.trim() || null,
+    reference_pages: document.getElementById('asgn-pages-in').value.trim() || null,
+    is_published: publish
+  };
+
+  const { error } = await db.from('assignments').upsert(row, { onConflict: 'id' });
+  const statusEl = document.getElementById('editor-status');
+  if (error) { statusEl.style.color='var(--red)'; statusEl.textContent='⚠ ' + error.message; return; }
+  statusEl.style.color='var(--green)';
+  statusEl.textContent = publish ? '✓ Published!' : '✓ Saved as draft';
+  setTimeout(() => { cancelEditor(); loadAssignmentsList(); }, 1200);
+}
+
+async function togglePublish(id, current) {
+  await db.from('assignments').update({ is_published: !current }).eq('id', id);
+  loadAssignmentsList();
+}
+
+// ═══════════════════════════════════════════════════
+// ROSTER TAB
+// ═══════════════════════════════════════════════════
+async function loadRosterTable() {
+  const { data: students } = await db
+    .from('students').select('student_id, name, section_id').order('section_id').order('name');
+  const countEl = document.getElementById('roster-count');
+  countEl.textContent = `${students?.length ?? 0} students enrolled`;
+  const wrap = document.getElementById('roster-table');
+  if (!students?.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:0.9em">No students yet. Upload a roster CSV.</div>'; return; }
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Student ID</th><th>Name</th><th>Section</th></tr></thead>
+    <tbody>${students.map(s => `<tr><td>${s.student_id}</td><td>${esc(s.name)}</td><td>${esc(s.section_id)}</td></tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleCsvFile(file);
+}
+
+function handleCsvFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => parseCsv(e.target.result);
+  reader.readAsText(file);
+}
+
+function parseCsv(text) {
+  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return;
+  const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g,''));
+  const idIdx   = headers.indexOf('student_id');
+  const nameIdx = headers.indexOf('name');
+  const sectIdx = headers.indexOf('section');
+  if (idIdx < 0 || nameIdx < 0 || sectIdx < 0) {
+    alert('CSV must have columns: student_id, name, section');
+    return;
+  }
+  const rows = [];
+  const errors = [];
+  lines.slice(1).forEach((line, li) => {
+    const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
+    const sid  = parseInt(cols[idIdx]);
+    const name = cols[nameIdx];
+    const sect = cols[sectIdx]?.toUpperCase();
+    if (isNaN(sid) || sid < 3000000000 || sid > 3009999999)
+      errors.push(`Row ${li+2}: invalid student_id "${cols[idIdx]}"`);
+    else if (!/^[MT][136][A-C]$/.test(sect))
+      errors.push(`Row ${li+2}: invalid section "${cols[sectIdx]}"`);
+    else
+      rows.push({ student_id: sid, name, section_id: sect });
+  });
+
+  if (errors.length) { alert('Errors found:\n' + errors.slice(0,5).join('\n')); return; }
+  pendingRoster = rows;
+
+  document.getElementById('csv-preview-info').textContent =
+    `${rows.length} students parsed — ${[...new Set(rows.map(r => r.section_id))].join(', ')}`;
+  const tableHtml = `<table><thead><tr><th>Student ID</th><th>Name</th><th>Section</th></tr></thead><tbody>
+    ${rows.slice(0,10).map(r => `<tr><td>${r.student_id}</td><td>${esc(r.name)}</td><td>${r.section_id}</td></tr>`).join('')}
+    ${rows.length > 10 ? `<tr><td colspan="3" style="color:var(--muted)">…and ${rows.length-10} more</td></tr>` : ''}
+  </tbody></table>`;
+  document.getElementById('csv-preview-table').innerHTML = tableHtml;
+  document.getElementById('csv-preview').style.display = '';
+}
+
+function cancelCsv() {
+  pendingRoster = [];
+  document.getElementById('csv-preview').style.display = 'none';
+  document.getElementById('csv-file').value = '';
+}
+
+async function commitRoster() {
+  if (!pendingRoster.length) return;
+  const statusEl = document.getElementById('roster-upload-status');
+  statusEl.textContent = 'Uploading…';
+
+  // Upsert all students
+  const { error } = await db.from('students')
+    .upsert(pendingRoster, { onConflict: 'student_id' });
+
+  if (error) { statusEl.style.color='var(--red)'; statusEl.textContent='⚠ ' + error.message; return; }
+
+  // Ensure all sections exist (without overwriting instructor assignments)
+  const sections = [...new Set(pendingRoster.map(r => r.section_id))];
+  await db.from('sections').upsert(
+    sections.map(id => ({ id })), { onConflict: 'id', ignoreDuplicates: true }
+  );
+
+  statusEl.style.color='var(--green)';
+  statusEl.textContent = `✓ ${pendingRoster.length} students uploaded!`;
+  pendingRoster = [];
+  setTimeout(() => { cancelCsv(); loadRosterTable(); }, 1500);
+}
+
+// ═══════════════════════════════════════════════════
+// SECTIONS TAB
+// ═══════════════════════════════════════════════════
+async function loadSections() {
+  const grid = document.getElementById('sections-grid');
+  grid.innerHTML = '<div style="color:var(--muted);font-size:0.9em">Loading…</div>';
+
+  const [{ data: sections }, { data: instructors }] = await Promise.all([
+    db.from('sections').select('id, instructor_id').order('id'),
+    db.from('instructors').select('id, name')
+  ]);
+  allInstructors = instructors || [];
+
+  if (!sections?.length) { grid.innerHTML = '<div style="color:var(--muted)">No sections yet. Upload a roster to create them.</div>'; return; }
+
+  grid.innerHTML = '';
+  sections.forEach(s => {
+    const assigned = allInstructors.find(i => i.id === s.instructor_id);
+    const card = document.createElement('div');
+    card.className = 'section-card';
+    const opts = allInstructors.map(i =>
+      `<option value="${i.id}" ${i.id === s.instructor_id ? 'selected' : ''}>${esc(i.name)}</option>`
+    ).join('');
+    card.innerHTML = `
+      <div class="section-id">${esc(s.id)}</div>
+      <select style="width:100%;font-size:0.82em;padding:4px 6px;border:1px solid var(--border);border-radius:4px"
+        onchange="assignInstructor('${s.id}', this.value)">
+        <option value="">— unassigned —</option>
+        ${opts}
+      </select>`;
+    grid.appendChild(card);
+  });
+}
+
+async function assignInstructor(sectionId, instructorId) {
+  await db.from('sections').update({ instructor_id: instructorId || null }).eq('id', sectionId);
+}
+
+async function registerInstructor() {
+  const name = document.getElementById('new-instructor-name').value.trim();
+  const uuid = document.getElementById('new-instructor-uuid').value.trim();
+  const statusEl = document.getElementById('instructor-reg-status');
+  if (!name || !uuid) { statusEl.style.color='var(--red)'; statusEl.textContent='Name and UUID required.'; return; }
+  const { error } = await db.from('instructors').insert({ id: uuid, name, is_director: false });
+  if (error) { statusEl.style.color='var(--red)'; statusEl.textContent='⚠ ' + error.message; return; }
+  statusEl.style.color='var(--green)';
+  statusEl.textContent = `✓ ${name} registered!`;
+  document.getElementById('new-instructor-name').value = '';
+  document.getElementById('new-instructor-uuid').value = '';
+  setTimeout(loadSections, 1000);
+}
+
+// ═══════════════════════════════════════════════════
+// EXPORT TAB
+// ═══════════════════════════════════════════════════
+async function initExportTab() {
+  const noteEl = document.getElementById('export-scope-note');
+  noteEl.textContent = instructor.is_director
+    ? 'Course Director: exports ALL sections and students.'
+    : `Section Instructor: exports your sections (${mySections.join(', ')}).`;
+}
+
+async function exportBlackboard() {
+  const statusEl = document.getElementById('export-status');
+  statusEl.textContent = 'Building…';
+
+  // Fetch all finalized assignments
+  const { data: asgns } = await db.from('assignments')
+    .select('id, title').order('due_date');
+
+  // Fetch students
+  let studentQuery = db.from('students').select('student_id, name, section_id').order('student_id');
+  if (!instructor.is_director && mySections.length) {
+    studentQuery = studentQuery.in('section_id', mySections);
+  }
+  const { data: students } = await studentQuery;
+  if (!students?.length) { statusEl.textContent = 'No students found.'; return; }
+
+  const studentIds = students.map(s => s.student_id);
+
+  // Fetch all finalized scores
+  const { data: scores } = await db.from('scores')
+    .select('student_id, assignment_id, total_score')
+    .eq('is_finalized', true)
+    .in('student_id', studentIds);
+
+  const scoreIndex = {};
+  (scores || []).forEach(s => {
+    if (!scoreIndex[s.student_id]) scoreIndex[s.student_id] = {};
+    scoreIndex[s.student_id][s.assignment_id] = s.total_score;
+  });
+
+  // Build CSV
+  const headers = ['Student ID', 'Name', ...asgns.map(a => a.title)];
+  const rows = students.map(st => [
+    st.student_id,
+    st.name,
+    ...asgns.map(a => scoreIndex[st.student_id]?.[a.id] ?? '')
+  ]);
+
+  const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Physics215_Grades_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  statusEl.textContent = `✓ Downloaded (${students.length} students, ${asgns.length} assignments)`;
+}
+
+// ── Utility ──
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

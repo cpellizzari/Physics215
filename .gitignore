@@ -1,0 +1,11 @@
+# Never commit these
+js/config.local.js
+*.env
+.env*
+config.json
+
+# macOS
+.DS_Store
+
+# Supabase service key files (kept in ~/.claude/skills/ only)
+*.service_key
