@@ -2,30 +2,30 @@
 -- Run AFTER schema.sql, rls.sql, and seed_test.sql.
 --
 -- Before running:
---   1. Create Tyler Hardy's account in Supabase Auth → Users → Add User
---      Email: Tyler.hardy@afacademy.af.edu  Password: (anything)
+--   1. Create Tyler Jones's account in Supabase Auth → Users → Add User
+--      Email: tyler.jones@afacademy.af.edu  Password: (anything)
 --   2. Copy his UUID and replace TYLER_UUID below.
---   3. If Tyler Hardy (3000000001) was a test student, this script removes him.
+--   3. Tyler Jones (3000000002) was a test student — this script removes him.
 --
--- Replace: TYLER_UUID  →  UUID from Supabase Auth for Tyler Hardy
+-- Replace: TYLER_UUID  →  UUID from Supabase Auth for Tyler Jones
 -- Casey's UUID is already in the DB: 6ad3ad7e-0a5b-4512-b9be-24673cbb0160
 
 -- ============================================================
--- 0. Remove Tyler Hardy from students (he's now an instructor)
+-- 0. Remove test students (Tyler Hardy was fake; Tyler Jones becomes instructor)
 -- ============================================================
-DELETE FROM responses WHERE student_id = 3000000001;
-DELETE FROM scores    WHERE student_id = 3000000001;
-DELETE FROM students  WHERE student_id = 3000000001;
+DELETE FROM responses WHERE student_id IN (3000000001, 3000000002);
+DELETE FROM scores    WHERE student_id IN (3000000001, 3000000002);
+DELETE FROM students  WHERE student_id IN (3000000001, 3000000002);
 
 -- ============================================================
--- 1. Register Tyler Hardy as instructor
+-- 1. Register Tyler Jones as instructor
 -- ============================================================
 INSERT INTO instructors (id, name, is_director)
-VALUES ('TYLER_UUID', 'Tyler Hardy', FALSE)
+VALUES ('TYLER_UUID', 'Tyler Jones', FALSE)
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 
 -- ============================================================
--- 2. Sections  (Casey: M1A, M1B  |  Tyler: T3A, T3B)
+-- 2. Sections  (Casey: M1A, M1B  |  Tyler Jones: T3A, T3B)
 -- ============================================================
 INSERT INTO sections (id, instructor_id) VALUES
   ('M1A', '6ad3ad7e-0a5b-4512-b9be-24673cbb0160'),
