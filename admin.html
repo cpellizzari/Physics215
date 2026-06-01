@@ -621,7 +621,11 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
       <div class="grade-student-header">
         <span class="grade-student-name">${esc(st.name)}</span>
         <span class="grade-student-section">Section ${esc(st.section_id)}</span>
-        ${finalized ? '<span class="grade-student-total" style="background:rgba(255,255,255,0.15)">✅ Finalized</span>' : ''}
+        ${finalized
+          ? `<span class="grade-student-total" style="background:rgba(255,255,255,0.15)">✅ Finalized</span>
+             <button class="btn btn-secondary btn-sm" style="font-size:0.75em;padding:3px 10px;margin-left:6px;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff"
+               onclick="reopenStudent(${st.student_id},'${esc(st.name)}')">✎ Reopen</button>`
+          : ''}
         <span class="grade-student-total" id="stotal-${st.student_id}">${total.toFixed(2)} / ${maxTotal.toFixed(2)} pts</span>
       </div>`;
 
@@ -734,6 +738,17 @@ async function finalizeGrades() {
   const statusEl = document.getElementById('grade-save-status');
   statusEl.textContent = error ? '⚠ Finalize failed' : '✅ Grades published to students!';
   setTimeout(() => loadGradingView(), 1500);
+}
+
+async function reopenStudent(studentId, name) {
+  if (!confirm(`Reopen grades for ${name}?\n\nTheir scores will be hidden from them until you re-finalize.`)) return;
+  const { error } = await db.from('scores')
+    .update({ is_finalized: false })
+    .eq('student_id', studentId)
+    .eq('assignment_id', gradeAssignment.id);
+  if (error) { alert('Error reopening: ' + error.message); return; }
+  // Reload just this student's card state
+  await loadGradingView();
 }
 
 // ══════════════════════════════════════════════════════

@@ -38,7 +38,11 @@
 <!-- ── SCREEN 2: Submission List ── -->
 <div id="screen-list" style="display:none">
   <div class="page">
-    <div id="welcome-banner" class="alert alert-info" style="margin-bottom:24px"></div>
+    <div id="welcome-banner" style="margin-bottom:28px; padding:20px 24px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; text-align:center">
+      <div style="font-size:0.85em; color:#3b82f6; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:4px">Logged in as</div>
+      <div id="welcome-name" style="font-size:2.4em; font-weight:800; color:#1e3a5f; line-height:1.15"></div>
+      <div id="welcome-section" style="font-size:0.95em; color:#64748b; margin-top:4px"></div>
+    </div>
     <h2 style="margin-bottom:4px">My Submissions</h2>
     <p style="color:var(--muted); font-size:0.88em; margin-bottom:20px">
       Scores and feedback appear here once your instructor has finished grading.
@@ -132,8 +136,8 @@ async function lookupStudent() {
   student = data;
   document.getElementById('header-name').textContent = student.name;
   document.getElementById('header-name').style.display = '';
-  document.getElementById('welcome-banner').textContent =
-    `Welcome back, ${student.name}! Section ${student.section_id}.`;
+  document.getElementById('welcome-name').textContent = student.name;
+  document.getElementById('welcome-section').textContent = `Section ${student.section_id}`;
   show('screen-list');
   loadSubmissions();
 }
@@ -159,7 +163,7 @@ async function loadSubmissions() {
   // Fetch finalized scores for this student
   const { data: scores } = await db
     .from('scores')
-    .select('assignment_id, total_score, max_total, is_finalized')
+    .select('assignment_id, total_score, max_total, is_finalized, question_scores')
     .eq('student_id', student.student_id)
     .eq('is_finalized', true);
 
@@ -186,9 +190,18 @@ async function loadSubmissions() {
 
     let scoreBadge = '';
     if (score) {
-      const pct = score.max_total > 0 ? score.total_score / score.max_total : 0;
-      const cls = pct >= 0.9 ? 'full' : pct >= 0.5 ? 'partial' : 'zero';
-      scoreBadge = `<span class="score-badge ${cls}">${score.total_score} / ${score.max_total} pts</span>`;
+      // Colored dots — one per question using status
+      const qs = score.question_scores || {};
+      const dots = (a.questions || []).map(q => {
+        const s = qs[q.id]?.status || (qs[q.id]?.score > 0 ? 'full' : 'zero');
+        const dot = { full:'#22c55e', warn:'#eab308', zero:'#ef4444' }[s] || '#94a3b8';
+        return `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${dot}"></span>`;
+      }).join(' ');
+      scoreBadge = `
+        <div style="text-align:right">
+          <div style="font-size:0.92em; font-weight:700; color:var(--text)">${score.total_score} / ${score.max_total} pts</div>
+          <div style="margin-top:4px; display:flex; gap:4px; justify-content:flex-end">${dots}</div>
+        </div>`;
     } else {
       scoreBadge = `<span class="score-badge pending">Pending grading</span>`;
     }
@@ -199,7 +212,7 @@ async function loadSubmissions() {
           <div class="card-title">${esc(a.title)}</div>
           <div class="card-meta">Submitted ${submitted.toLocaleDateString()} · ${a.questions?.length ?? 0} questions</div>
         </div>
-        <div style="text-align:right">${scoreBadge}</div>
+        <div>${scoreBadge}</div>
       </div>
     `;
     listEl.appendChild(card);
@@ -262,14 +275,21 @@ function renderDetailQuestions(questions, answers, questionScores, isGraded) {
     const block = document.createElement('div');
     block.className = 'question-block';
 
-    // Score badge for this question
+    // Score badge for this question — color from status field
     let scoreLine = '';
     if (isGraded && qs.score !== undefined) {
-      const pct = q.points > 0 ? qs.score / q.points : 0;
-      const cls = pct >= 0.9 ? 'full' : pct >= 0.4 ? 'partial' : 'zero';
+      const status = qs.status || (qs.score >= q.points ? 'full' : 'zero');
+      const colors = {
+        full: { bg:'#dcfce7', border:'#86efac', text:'#166534', label:'✓ Full Credit' },
+        warn: { bg:'#fef9c3', border:'#fde047', text:'#854d0e', label:'⚠ Full Credit' },
+        zero: { bg:'#fee2e2', border:'#fca5a5', text:'#991b1b', label:'✗ No Credit'  },
+      };
+      const c = colors[status] || colors.full;
       scoreLine = `
-        <div style="margin-bottom:10px">
-          <span class="score-badge ${cls}">${qs.score} / ${q.points} pts</span>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px">
+          <span style="display:inline-block; padding:6px 16px; border-radius:6px; font-size:0.88em; font-weight:700;
+            background:${c.bg}; border:2px solid ${c.border}; color:${c.text}">${c.label}</span>
+          <span style="font-size:0.9em; color:var(--muted)">${qs.score} / ${q.points} pts</span>
         </div>`;
     }
 
