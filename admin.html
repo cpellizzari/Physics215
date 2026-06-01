@@ -600,7 +600,7 @@ async function loadGradingView() {
 function renderGradeCards(asgn, students, responseMap, scoreMap) {
   const container = document.getElementById('grade-container');
   const qs = asgn.questions || [];
-  const maxTotal = qs.reduce((s, q) => s + (q.points || 0), 0);
+  const maxTotal = qs.reduce((s, q) => s + (isNaN(Number(q.points)) ? 0 : Number(q.points)), 0);
   container.innerHTML = '';
 
   if (!students.length) {
@@ -686,7 +686,7 @@ function toggleCredit(studentId, qId, maxPoints) {
 
   // Update header total
   const qs       = gradeAssignment.questions || [];
-  const maxTotal = qs.reduce((s, q) => s + (q.points || 0), 0);
+  const maxTotal = qs.reduce((s, q) => s + (isNaN(Number(q.points)) ? 0 : Number(q.points)), 0);
   const total    = qs.reduce((s, q) => s + (Number(gradeData[studentId][q.id]?.score) || 0), 0);
   const totalEl  = document.getElementById(`stotal-${studentId}`);
   if (totalEl) totalEl.textContent = `${total.toFixed(2)} / ${maxTotal.toFixed(2)} pts`;
@@ -701,7 +701,7 @@ async function saveGrades() {
   const statusEl = document.getElementById('grade-save-status');
   statusEl.textContent = 'Saving…';
   const qs       = gradeAssignment.questions || [];
-  const maxTotal = qs.reduce((s, q) => s + (q.points || 0), 0);
+  const maxTotal = qs.reduce((s, q) => s + (isNaN(Number(q.points)) ? 0 : Number(q.points)), 0);
 
   const upserts = Object.entries(gradeData).map(([sid, qMap]) => {
     const questionScores = {};
@@ -1112,10 +1112,15 @@ function renderQuestionBuilder() {
         <textarea rows="2" oninput="questionItems[${idx}].text=this.value">${esc(q.text)}</textarea></div>
       <div class="field" style="max-width:140px"><label>Points</label>
         <input type="number" min="0" step="0.1" value="${q.points}"
-          oninput="{ const v=parseFloat(this.value); questionItems[${idx}].points=isNaN(v)?1:v; }"></div>
+          oninput="setQuestionPoints(${idx}, this.value)"></div>
       ${extra}`;
     container.appendChild(div);
   });
+}
+
+function setQuestionPoints(idx, value) {
+  const v = parseFloat(value);
+  questionItems[idx].points = isNaN(v) ? 1 : v;
 }
 
 async function saveAssignment(publish) {
@@ -1168,7 +1173,7 @@ async function retroactivelyUpdateScores(assignmentId, allQuestions) {
     .eq('assignment_id', assignmentId);
   if (error || !scores?.length) return 0;
 
-  const newMaxTotal = allQuestions.reduce((s, q) => s + (Number(q.points) || 0), 0);
+  const newMaxTotal = allQuestions.reduce((s, q) => s + (isNaN(Number(q.points)) ? 0 : Number(q.points)), 0);
 
   const upserts = scores.map(row => {
     const qs = { ...(row.question_scores || {}) };
