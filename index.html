@@ -38,7 +38,11 @@
 <!-- ── SCREEN 2: Assignment List ── -->
 <div id="screen-assignments" style="display:none">
   <div class="page">
-    <div id="welcome-banner" class="alert alert-info" style="margin-bottom:24px"></div>
+    <div id="welcome-banner" style="margin-bottom:28px; padding:20px 24px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; text-align:center">
+      <div style="font-size:0.85em; color:#3b82f6; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:4px">Logged in as</div>
+      <div id="welcome-name" style="font-size:2.4em; font-weight:800; color:#1e3a5f; line-height:1.15"></div>
+      <div id="welcome-section" style="font-size:0.95em; color:#64748b; margin-top:4px"></div>
+    </div>
     <h2 style="margin-bottom:4px">Open Assignments</h2>
     <p style="color:var(--muted); font-size:0.88em; margin-bottom:20px">Click an assignment to open it. Your answers are saved automatically.</p>
     <div id="assignment-list"></div>
@@ -138,8 +142,8 @@ async function lookupStudent() {
   student = data;
   document.getElementById('header-name').textContent = student.name;
   document.getElementById('header-name').style.display = '';
-  document.getElementById('welcome-banner').textContent =
-    `Welcome, ${student.name}! Section ${student.section_id}.`;
+  document.getElementById('welcome-name').textContent = student.name;
+  document.getElementById('welcome-section').textContent = `Section ${student.section_id}`;
   show('screen-assignments');
   loadAssignments();
 }
