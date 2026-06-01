@@ -73,11 +73,13 @@
   flex-shrink: 0; padding: 9px 20px;
   border-radius: 6px; font-size: 0.88em; font-weight: 700;
   cursor: pointer; transition: background 0.15s, transform 0.08s;
-  min-width: 130px; text-align: center; border: 2px solid transparent;
+  min-width: 160px; text-align: center; border: 2px solid transparent;
 }
 .credit-toggle:active { transform: scale(0.97); }
 .credit-toggle.full { background: #dcfce7; color: #166534; border-color: #86efac; }
 .credit-toggle.full:hover { background: #bbf7d0; }
+.credit-toggle.warn { background: #fef9c3; color: #854d0e; border-color: #fde047; }
+.credit-toggle.warn:hover { background: #fef08a; }
 .credit-toggle.zero { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 .credit-toggle.zero:hover { background: #fecaca; }
 .credit-toggle[disabled] { cursor: default; opacity: 0.8; }
@@ -569,18 +571,23 @@ async function loadGradingView() {
   const scoreMap = {};
   (scores || []).forEach(s => scoreMap[s.student_id] = { qs: s.question_scores || {}, finalized: s.is_finalized });
 
-  // Build gradeData — binary: full credit or 0
+  // Build gradeData — binary full/warn/zero
   gradeData = {};
   students.forEach(st => {
     gradeData[st.student_id] = {};
     (asgn.questions || []).forEach(q => {
-      const saved = scoreMap[st.student_id]?.qs[q.id];
+      const saved    = scoreMap[st.student_id]?.qs[q.id];
       const hasAnswer = String(responseMap[st.student_id]?.[q.id] ?? '').trim().length > 0;
+      const savedScore = saved?.score !== undefined ? Number(saved.score) : null;
+      const hasFeedback = !!(saved?.feedback && saved.feedback.trim());
+      // Derive status: use saved status if present, else infer from score+feedback
+      let status = saved?.status
+        || (savedScore === null ? (hasAnswer ? 'full' : 'zero')
+            : savedScore > 0 ? (hasFeedback ? 'warn' : 'full') : 'zero');
       gradeData[st.student_id][q.id] = {
-        score: saved?.score !== undefined
-          ? (Number(saved.score) > 0 ? q.points : 0)  // normalize to binary
-          : (hasAnswer ? q.points : 0),                // default: full if answered, 0 if blank
+        score:    status === 'zero' ? 0 : q.points,
         feedback: saved?.feedback ?? '',
+        status,
         modified: false
       };
     });
@@ -624,8 +631,11 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
       const gd         = gradeData[st.student_id][q.id];
       const isFull     = Number(gd.score) >= q.points;
 
-      const toggleCls   = isFull ? 'full' : 'zero';
-      const toggleLabel = isFull ? '✓ Full Credit' : '✗ No Credit';
+      const status      = gd.status || (isFull ? 'full' : 'zero');
+      const toggleCls   = status;
+      const toggleLabel = status === 'warn' ? '⚠ Full Credit, but may not be correct'
+                        : status === 'full' ? '✓ Full Credit'
+                        : '✗ No Credit';
 
       html += `
         <div class="grade-q-row">
@@ -641,6 +651,7 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
                  <textarea class="feedback-input" placeholder="Feedback for student (optional)…"
                    oninput="updateFeedback(${st.student_id},'${q.id}',this)">${esc(gd.feedback)}</textarea>`
             }
+            ${status === 'warn' && !finalized ? `<div style="font-size:0.75em;color:#854d0e;padding:2px 0 0;flex-basis:100%">Click to confirm correct (green) or deduct credit (red)</div>` : ''}
           </div>
         </div>`;
     });
@@ -651,16 +662,22 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
 }
 
 function toggleCredit(studentId, qId, maxPoints) {
-  const gd    = gradeData[studentId][qId];
-  const wasFull = Number(gd.score) >= maxPoints;
-  gd.score    = wasFull ? 0 : maxPoints;
+  const gd = gradeData[studentId][qId];
+  // 3-state cycle: warn → full → zero → full → zero ...
+  const next = { warn: 'full', full: 'zero', zero: 'full' };
+  gd.status   = next[gd.status] || 'full';
+  gd.score    = gd.status === 'zero' ? 0 : maxPoints;
   gd.modified = true;
 
   const btn = document.getElementById(`toggle-${studentId}-${qId}`);
   if (btn) {
-    const nowFull = !wasFull;
-    btn.className = `credit-toggle ${nowFull ? 'full' : 'zero'}`;
-    btn.textContent = nowFull ? '✓ Full Credit' : '✗ No Credit';
+    btn.className   = `credit-toggle ${gd.status}`;
+    btn.textContent = gd.status === 'warn' ? '⚠ Full Credit, but may not be correct'
+                    : gd.status === 'full' ? '✓ Full Credit'
+                    : '✗ No Credit';
+    // Remove hint line when no longer in warn state
+    const hint = btn.closest('.grade-controls')?.querySelector('.warn-hint');
+    if (hint) hint.style.display = gd.status === 'warn' ? '' : 'none';
   }
 
   // Update header total
@@ -687,7 +704,7 @@ async function saveGrades() {
     let total = 0;
     qs.forEach(q => {
       const gd = qMap[q.id];
-      questionScores[q.id] = { score: gd.score, max: q.points, feedback: gd.feedback };
+      questionScores[q.id] = { score: gd.score, max: q.points, feedback: gd.feedback, status: gd.status || (gd.score > 0 ? 'full' : 'zero') };
       total += Number(gd.score) || 0;
     });
     return {
