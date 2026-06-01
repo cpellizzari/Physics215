@@ -855,7 +855,7 @@ async function loadReport() {
             <div style="font-size:0.75em; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--blue)">Raw Responses</div>
             <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap">
               <label class="toggle-label">
-                <input type="checkbox" id="attrib-${idx}" checked onchange="toggleAttribution(${idx})">
+                <input type="checkbox" id="attrib-${idx}" onchange="toggleAttribution(${idx})">
                 <span class="toggle-track"></span>
                 <span style="font-size:0.82em; color:var(--muted)">Show names</span>
               </label>
@@ -867,7 +867,7 @@ async function loadReport() {
               <div class="response-bullet">
                 <span class="bullet-dot">•</span>
                 <span class="bullet-text">${a.answer.trim() ? esc(a.answer) : '<em style="color:var(--muted)">No answer submitted.</em>'}</span>
-                <span class="attrib-name">&nbsp;(${esc(a.name)} · ${esc(a.section)})</span>
+                <span class="attrib-name" style="display:none">&nbsp;(${esc(a.name)} · ${esc(a.section)})</span>
               </div>`).join('')}
           </div>
         </div>
