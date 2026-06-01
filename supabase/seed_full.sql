@@ -1,31 +1,28 @@
--- Physics 215 — Full Test Data Seed
--- Run AFTER schema.sql, rls.sql, and seed_test.sql.
+-- Physics 215 — Full Test Data Seed (v2: 25 students per section, 100 total)
+-- Run AFTER schema.sql and rls.sql.
 --
 -- Before running:
---   1. Create Tyler Jones's account in Supabase Auth → Users → Add User
---      Email: tyler.jones@afacademy.af.edu  Password: (anything)
---   2. Copy his UUID and replace 52b48755-01a5-479e-9bfa-eeeedce12742 below.
---   3. Tyler Jones (3000000002) was a test student — this script removes him.
---
--- Replace: 52b48755-01a5-479e-9bfa-eeeedce12742  →  UUID from Supabase Auth for Tyler Jones
--- Casey's UUID is already in the DB: 6ad3ad7e-0a5b-4512-b9be-24673cbb0160
+--   1. Ensure Tyler Jones exists in Supabase Auth (tyler.jones@afacademy.af.edu)
+--      UUID must be: 52b48755-01a5-479e-9bfa-eeeedce12742
+--   2. Ensure Casey Pellizzari exists with UUID: 6ad3ad7e-0a5b-4512-b9be-24673cbb0160
 
 -- ============================================================
--- 0. Remove test students (Tyler Hardy was fake; Tyler Jones becomes instructor)
+-- 0. Clean up all previous test students and their data
 -- ============================================================
-DELETE FROM responses WHERE student_id IN (3000000001, 3000000002);
-DELETE FROM scores    WHERE student_id IN (3000000001, 3000000002);
-DELETE FROM students  WHERE student_id IN (3000000001, 3000000002);
+DELETE FROM scores    WHERE student_id BETWEEN 3000000001 AND 3000003200;
+DELETE FROM responses WHERE student_id BETWEEN 3000000001 AND 3000003200;
+DELETE FROM students  WHERE student_id BETWEEN 3000000001 AND 3000003200;
 
 -- ============================================================
--- 1. Register Tyler Jones as instructor
+-- 1. Instructors
 -- ============================================================
-INSERT INTO instructors (id, name, is_director)
-VALUES ('52b48755-01a5-479e-9bfa-eeeedce12742', 'Tyler Jones', FALSE)
-ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+INSERT INTO instructors (id, name, is_director) VALUES
+  ('6ad3ad7e-0a5b-4512-b9be-24673cbb0160', 'Casey Pellizzari', TRUE),
+  ('52b48755-01a5-479e-9bfa-eeeedce12742', 'Tyler Jones', FALSE)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, is_director = EXCLUDED.is_director;
 
 -- ============================================================
--- 2. Sections  (Casey: M1A, M1B  |  Tyler Jones: T3A, T3B)
+-- 2. Sections
 -- ============================================================
 INSERT INTO sections (id, instructor_id) VALUES
   ('M1A', '6ad3ad7e-0a5b-4512-b9be-24673cbb0160'),
@@ -35,273 +32,316 @@ INSERT INTO sections (id, instructor_id) VALUES
 ON CONFLICT (id) DO UPDATE SET instructor_id = EXCLUDED.instructor_id;
 
 -- ============================================================
--- 3. Students  (IDs 3000001001–3000001032, 8 per section)
+-- 3. Students (25 per section, 100 total)
 -- ============================================================
 INSERT INTO students (student_id, name, section_id) VALUES
--- Section M1A
-  (3000001001, 'Alex Carter',    'M1A'),
-  (3000001002, 'Jordan Blake',   'M1A'),
-  (3000001003, 'Morgan Ellis',   'M1A'),
-  (3000001004, 'Riley Nguyen',   'M1A'),
-  (3000001005, 'Quinn Foster',   'M1A'),
-  (3000001006, 'Avery Brooks',   'M1A'),
-  (3000001007, 'Taylor Kim',     'M1A'),
-  (3000001008, 'Drew Castillo',  'M1A'),
--- Section M1B
-  (3000001011, 'Sam Mitchell',   'M1B'),
-  (3000001012, 'Casey Torres',   'M1B'),
-  (3000001013, 'Reese Walker',   'M1B'),
-  (3000001014, 'Jamie Lee',      'M1B'),
-  (3000001015, 'Parker Owens',   'M1B'),
-  (3000001016, 'Robin Hayes',    'M1B'),
-  (3000001017, 'Blake Adams',    'M1B'),
-  (3000001018, 'Cameron West',   'M1B'),
--- Section T3A
-  (3000001021, 'Dakota Rivera',  'T3A'),
-  (3000001022, 'Skyler Patel',   'T3A'),
-  (3000001023, 'Finley Grant',   'T3A'),
-  (3000001024, 'Emery Shaw',     'T3A'),
-  (3000001025, 'Hayden Cole',    'T3A'),
-  (3000001026, 'Rowan Jensen',   'T3A'),
-  (3000001027, 'Logan Stone',    'T3A'),
-  (3000001028, 'Peyton Ward',    'T3A'),
--- Section T3B
-  (3000001031, 'Kendall Ross',   'T3B'),
-  (3000001032, 'Sutton Bell',    'T3B'),
-  (3000001033, 'Harlow Cruz',    'T3B'),
-  (3000001034, 'Elliot Simmons', 'T3B'),
-  (3000001035, 'Sage Turner',    'T3B'),
-  (3000001036, 'Remy Hughes',    'T3B'),
-  (3000001037, 'Marlowe Price',  'T3B'),
-  (3000001038, 'Indigo Cooper',  'T3B')
-ON CONFLICT (student_id) DO UPDATE
-  SET name = EXCLUDED.name, section_id = EXCLUDED.section_id;
-
--- Keep Tyler Jones (3000000002) as M1A student from seed_test.sql
-
--- ============================================================
--- 4. Responses for Preflight 1
---    Varied answers showing realistic physics engagement
--- ============================================================
-
--- ── M1A students ──
-INSERT INTO responses (student_id, assignment_id, answers) VALUES
-
-(3000001001, 'preflight-1', '{
-  "q1": "About 45 minutes.",
-  "q2": "I found the section on electric fields most interesting. The idea that a charged object can exert force on another object without touching it seems counterintuitive at first, but the field concept makes it click.",
-  "q3": "They attract. The charged insulator creates an electric field that causes the free electrons in the metal to move toward it, leaving the far side positive. This separation of charge causes a net attraction."
-}'::jsonb),
-
-(3000001002, 'preflight-1', '{
-  "q1": "30 minutes.",
-  "q2": "I was confused by Coulomb''s law — specifically when there are multiple charges. Do you just add up all the forces? Also not sure how the constant k relates to permittivity of free space.",
-  "q3": "They attract because the metal gets polarized. The electrons bunch up on the near side and the positive ions stay, so the near side is attracted to the insulator."
-}'::jsonb),
-
-(3000001003, 'preflight-1', '{
-  "q1": "1 hour.",
-  "q2": "Most confusing was the difference between conductors and insulators at the atomic level. I understand conductors have free electrons but I''m not sure how many are really free per atom.",
-  "q3": "They attract. The insulator has a net charge and when it comes near the metal, it pushes or pulls the free electrons in the metal so that one side of the metal has the opposite charge. Opposite charges attract."
-}'::jsonb),
-
-(3000001004, 'preflight-1', '{
-  "q1": "20 minutes.",
-  "q2": "The concept of electric flux was interesting but I don''t fully understand it yet. I get that it measures how much field passes through a surface but the math feels abstract.",
-  "q3": "They repel. Both objects have charges so they push away from each other."
-}'::jsonb),
-
-(3000001005, 'preflight-1', '{
-  "q1": "About 40 minutes.",
-  "q2": "I found the historical context about Coulomb''s experiments interesting. The section on superposition was confusing - I''m not sure whether you add force vectors or just magnitudes.",
-  "q3": "They attract. Even though the metal is uncharged overall, the charged insulator induces a charge separation in the metal. The closer side gets the opposite charge and since opposites attract, there is a net pull."
-}'::jsonb),
-
-(3000001006, 'preflight-1', '{
-  "q1": "I skimmed it, maybe 15 minutes.",
-  "q2": "I didn''t read it carefully enough to have specific questions.",
-  "q3": "Attract, because of static electricity."
-}'::jsonb),
-
-(3000001007, 'preflight-1', '{
-  "q1": "50 minutes.",
-  "q2": "What confused me most was the relationship between electric field lines and force. I know field lines point in the direction of force on a positive charge but I got turned around when thinking about negative charges.",
-  "q3": "They attract. The process is called induction. The free electrons in the conductor redistribute so the face closest to the charged insulator has opposite charge. Since the attraction to the near face is stronger than the repulsion from the far face, there is a net attractive force."
-}'::jsonb),
-
-(3000001008, 'preflight-1', '{
-  "q1": "25 minutes.",
-  "q2": "The part about quantization of charge was interesting - that all charge comes in multiples of e = 1.6e-19 C. Also wasn''t sure what determines whether an object is a conductor or insulator.",
-  "q3": "They attract because the electrons in the metal can move freely and they rearrange so the metal is attracted."
-}'::jsonb),
-
--- ── M1B students ──
-(3000001011, 'preflight-1', '{
-  "q1": "35 minutes.",
-  "q2": "Most interesting was learning that the electric force follows an inverse square law just like gravity. I''m curious whether this is a coincidence or has a deeper reason.",
-  "q3": "They attract. The charged insulator polarizes the metal by causing electrons to shift toward or away from the insulator. The side closer to the insulator has the opposite sign charge, causing attraction."
-}'::jsonb),
-
-(3000001012, 'preflight-1', '{
-  "q1": "45 minutes.",
-  "q2": "I was confused by the distinction between charge distribution on conductors vs insulators. For conductors charges go to the surface, but why exactly? And what happens on a sharp point?",
-  "q3": "They would attract. When the charged insulator comes near, it induces a charge on the near side of the metal through polarization of the free electrons. The net force is attractive even though the metal has no net charge."
-}'::jsonb),
-
-(3000001013, 'preflight-1', '{
-  "q1": "1 hour 15 minutes.",
-  "q2": "The most confusing part was Gauss''s law. I sort of understand the concept but I''m not sure when to use it versus just Coulomb''s law directly. The examples with spherical symmetry made sense but other geometries are less clear.",
-  "q3": "They attract. Free electrons in the metallic object move to the side nearest the insulator if the insulator is positively charged, making that side negative. The negative side is closer and the attractive force is stronger than the repulsive force from the far side."
-}'::jsonb),
-
-(3000001014, 'preflight-1', '{
-  "q1": "I read for about 20 minutes but got distracted.",
-  "q2": "Not sure yet - didn''t finish the reading.",
-  "q3": ""
-}'::jsonb),
-
-(3000001015, 'preflight-1', '{
-  "q1": "30 minutes.",
-  "q2": "Found the concept of test charges confusing - we define electric field using a small positive test charge, but does the test charge change the field we''re trying to measure?",
-  "q3": "They attract. The insulator''s charge induces polarization in the conductor - the free electrons redistribute creating a charge imbalance. The near side has opposite charge to the insulator so they pull toward each other."
-}'::jsonb),
-
-(3000001016, 'preflight-1', '{
-  "q1": "About 1 hour.",
-  "q2": "The reading was interesting overall. I found the part about insulators and conductors most interesting because I hadn''t thought about it at the atomic level before. Most confusing was the vector addition of electric fields from multiple charges.",
-  "q3": "Attract. The metal becomes polarized near the insulator because the free electrons can move. One side of the metal will be oppositely charged to the insulator, leading to a net attractive force."
-}'::jsonb),
-
-(3000001017, 'preflight-1', '{
-  "q1": "10 minutes.",
-  "q2": "Did not read thoroughly.",
-  "q3": "I think they repel since both have charges."
-}'::jsonb),
-
-(3000001018, 'preflight-1', '{
-  "q1": "40 minutes.",
-  "q2": "I was most confused about the direction of electric field vectors when there are multiple source charges. Specifically, when you have both positive and negative charges nearby, how do you determine which dominates?",
-  "q3": "They attract. Even though the metal doesn''t have a net charge, the insulator causes polarization. Electrons shift so that the near face of the metal has charge opposite to the insulator. The near attraction dominates over the far repulsion."
-}'::jsonb),
-
--- ── T3A students ──
-(3000001021, 'preflight-1', '{
-  "q1": "45 minutes.",
-  "q2": "The most interesting thing was how Coulomb was able to measure something as small as electric force with a torsion balance. The most confusing was understanding how the principle of superposition works in practice with more than two charges.",
-  "q3": "They attract due to induction. The charged insulator causes free electrons in the conductor to shift, polarizing it. The side closer to the insulator becomes oppositely charged, and since the attractive force decreases with distance squared, the attraction is stronger than the repulsion from the far side."
-}'::jsonb),
-
-(3000001022, 'preflight-1', '{
-  "q1": "1 hour.",
-  "q2": "I found the connection between electric field and potential energy interesting but I''m confused about the sign conventions. When is the potential energy positive vs negative?",
-  "q3": "They attract. The metal polarizes - free electrons redistribute so one side is closer to the sign of the insulator and the other side is the same sign. The opposite side is closer so the force is attractive."
-}'::jsonb),
-
-(3000001023, 'preflight-1', '{
-  "q1": "2 hours - went deep on it.",
-  "q2": "Most interesting was thinking about what really is charge at a fundamental level. Most confusing was the units - coulombs, newtons per coulomb, joules per coulomb. Keeping track of the units in problems.",
-  "q3": "They attract each other. The reason is that the charged insulator creates an electric field that causes the free electrons in the conductor to migrate toward the insulator if the insulator is positively charged. This leaves the near side negative and the far side positive. Because electric force goes as 1/r^2, the attraction to the near face dominates, giving a net attractive force."
-}'::jsonb),
-
-(3000001024, 'preflight-1', '{
-  "q1": "About 30 minutes.",
-  "q2": "The reading was okay. I found the examples helpful but found the section on Gauss''s law hard to follow.",
-  "q3": "They attract I think. Something about the charges in the metal rearranging."
-}'::jsonb),
-
-(3000001025, 'preflight-1', '{
-  "q1": "15 minutes.",
-  "q2": ".",
-  "q3": ""
-}'::jsonb),
-
-(3000001026, 'preflight-1', '{
-  "q1": "45 minutes.",
-  "q2": "I found charge quantization interesting - the fact that charge can only exist in integer multiples of the elementary charge. What I found confusing is the concept of charge density - surface charge density vs volume charge density.",
-  "q3": "They attract. The uncharged metal gets polarized by induction - the free electrons in the metal shift in response to the external electric field from the insulator, making one side negative and the other side positive. The force is attractive because the like charges are further away."
-}'::jsonb),
-
-(3000001027, 'preflight-1', '{
-  "q1": "1 hour 30 minutes.",
-  "q2": "The most interesting was the section on how Millikan measured the charge of an electron. Most confusing was working through the vector components of electric field when charges are arranged in 2D.",
-  "q3": "Attract. The metal is polarized by the electric field of the insulator. The free electrons in the conductor move to minimize energy, creating an induced charge on the surface. The side closer to the insulator has the opposite sign, so they attract."
-}'::jsonb),
-
-(3000001028, 'preflight-1', '{
-  "q1": "Zero, I didn''t have time.",
-  "q2": "See above.",
-  "q3": ""
-}'::jsonb),
-
--- ── T3B students ──
-(3000001031, 'preflight-1', '{
-  "q1": "30 minutes.",
-  "q2": "Most interesting: the fact that objects can have induced charges without transferring charge - just by proximity. Confusing: the formula for electric potential - how is it different from electric field?",
-  "q3": "They attract. The insulator polarizes the metal. The free electrons in the metal move toward (or away from) the insulator creating opposite charges on the near side. Net force is attractive."
-}'::jsonb),
-
-(3000001032, 'preflight-1', '{
-  "q1": "About 45 min.",
-  "q2": "What I found most confusing was understanding when to model charge as a point charge versus a distributed charge. When is the approximation valid?",
-  "q3": "They attract because the charged insulator causes polarization in the conductor. Electrons in the metal redistribute so the near surface has opposite charge to the insulator. Like charges repel and opposite charges attract, so there is a net attraction."
-}'::jsonb),
-
-(3000001033, 'preflight-1', '{
-  "q1": "1 hour.",
-  "q2": "The most confusing was the right hand rule for electric field direction. Also I''m not sure if the electric field inside a conductor is really zero when there are external charges nearby.",
-  "q3": "They attract. When the charged insulator is brought close, the electrons in the metallic object redistribute. If the insulator is positive, electrons cluster on the near side making it negative. The metal has zero net charge but has a charge imbalance that causes net attraction."
-}'::jsonb),
-
-(3000001034, 'preflight-1', '{
-  "q1": "45 minutes.",
-  "q2": "What I found most interesting was the shell theorem - that a uniform shell of charge acts as if all the charge is at the center. I wasn''t expecting that result from Gauss''s law.",
-  "q3": "They attract. This is an example of electrostatic induction. The charged insulator polarizes the metallic object by displacing electrons in the conductor. The side facing the insulator acquires an opposite charge, resulting in a net attractive force even though the metal has no overall charge."
-}'::jsonb),
-
-(3000001035, 'preflight-1', '{
-  "q1": "I read for 25 minutes.",
-  "q2": "I found the notation confusing - using E for electric field and also using E for energy in other contexts.",
-  "q3": "Repel - I think if the insulator is charged and the metal is neutral they repel."
-}'::jsonb),
-
-(3000001036, 'preflight-1', '{
-  "q1": "1 hour.",
-  "q2": "The most confusing was why electric field lines never cross. I get the reasoning but it took me a minute. Most interesting was learning that you can shield electronics with a Faraday cage.",
-  "q3": "They attract. Because the metal has free electrons that can move around, when you bring a charged insulator close the electrons redistribute. One face of the metal ends up with opposite charge to the insulator, so it attracts."
-}'::jsonb),
-
-(3000001037, 'preflight-1', '{
-  "q1": "20 minutes.",
-  "q2": "I found this reading dense. Not sure what I should focus on.",
-  "q3": "I''m not sure. Maybe they attract?"
-}'::jsonb),
-
-(3000001038, 'preflight-1', '{
-  "q1": "55 minutes.",
-  "q2": "Most interesting: how a Faraday cage blocks electric fields - the charges redistribute on the outside and cancel the field inside. Most confusing: the relationship between Coulomb''s law and Gauss''s law - are they saying the same thing in different forms?",
-  "q3": "They attract. The charged insulator creates an electric field that polarizes the metal conductor. Free electrons migrate to the surface nearest the insulator, creating an opposite charge there. Since the attractive force between unlike charges is stronger at shorter range, there is a net attraction."
-}'::jsonb)
-
-ON CONFLICT (student_id, assignment_id) DO UPDATE
-  SET answers = EXCLUDED.answers, updated_at = NOW();
+  (3000003001, 'Alex Carter', 'M1A'),
+  (3000003002, 'Jordan Blake', 'M1A'),
+  (3000003003, 'Morgan Ellis', 'M1A'),
+  (3000003004, 'Riley Nguyen', 'M1A'),
+  (3000003005, 'Quinn Foster', 'M1A'),
+  (3000003006, 'Avery Brooks', 'M1A'),
+  (3000003007, 'Taylor Kim', 'M1A'),
+  (3000003008, 'Drew Castillo', 'M1A'),
+  (3000003009, 'Jesse Morgan', 'M1A'),
+  (3000003010, 'Lane Cooper', 'M1A'),
+  (3000003011, 'Sage Williams', 'M1A'),
+  (3000003012, 'River Chen', 'M1A'),
+  (3000003013, 'Phoenix Davis', 'M1A'),
+  (3000003014, 'Noel Garcia', 'M1A'),
+  (3000003015, 'Reese Thompson', 'M1A'),
+  (3000003016, 'Blair Hernandez', 'M1A'),
+  (3000003017, 'Cameron Martin', 'M1A'),
+  (3000003018, 'Finley Anderson', 'M1A'),
+  (3000003019, 'Jamie Wilson', 'M1A'),
+  (3000003020, 'Bailey Jackson', 'M1A'),
+  (3000003021, 'Parker White', 'M1A'),
+  (3000003022, 'Logan Thomas', 'M1A'),
+  (3000003023, 'Dakota Lee', 'M1A'),
+  (3000003024, 'Skyler Harris', 'M1A'),
+  (3000003025, 'Elliot Clark', 'M1A'),
+  (3000003026, 'Sam Mitchell', 'M1B'),
+  (3000003027, 'Casey Torres', 'M1B'),
+  (3000003028, 'Reese Walker', 'M1B'),
+  (3000003029, 'Jamie Lee', 'M1B'),
+  (3000003030, 'Parker Owens', 'M1B'),
+  (3000003031, 'Robin Hayes', 'M1B'),
+  (3000003032, 'Blake Adams', 'M1B'),
+  (3000003033, 'Cameron West', 'M1B'),
+  (3000003034, 'Addison Young', 'M1B'),
+  (3000003035, 'Kennedy Hall', 'M1B'),
+  (3000003036, 'Peyton King', 'M1B'),
+  (3000003037, 'Jordan Moore', 'M1B'),
+  (3000003038, 'Taylor Scott', 'M1B'),
+  (3000003039, 'Casey Green', 'M1B'),
+  (3000003040, 'Morgan Baker', 'M1B'),
+  (3000003041, 'Riley Simmons', 'M1B'),
+  (3000003042, 'Quinn Nelson', 'M1B'),
+  (3000003043, 'Avery Carter', 'M1B'),
+  (3000003044, 'Drew Mitchell', 'M1B'),
+  (3000003045, 'Jesse Thompson', 'M1B'),
+  (3000003046, 'Lane Roberts', 'M1B'),
+  (3000003047, 'Sage Foster', 'M1B'),
+  (3000003048, 'River Lopez', 'M1B'),
+  (3000003049, 'Phoenix Hill', 'M1B'),
+  (3000003050, 'Noel Evans', 'M1B'),
+  (3000003051, 'Dakota Rivera', 'T3A'),
+  (3000003052, 'Skyler Patel', 'T3A'),
+  (3000003053, 'Finley Grant', 'T3A'),
+  (3000003054, 'Emery Shaw', 'T3A'),
+  (3000003055, 'Hayden Cole', 'T3A'),
+  (3000003056, 'Rowan Jensen', 'T3A'),
+  (3000003057, 'Logan Stone', 'T3A'),
+  (3000003058, 'Peyton Ward', 'T3A'),
+  (3000003059, 'Kendall Ross', 'T3A'),
+  (3000003060, 'Sutton Bell', 'T3A'),
+  (3000003061, 'Harlow Cruz', 'T3A'),
+  (3000003062, 'Elliot Simmons', 'T3A'),
+  (3000003063, 'Sage Turner', 'T3A'),
+  (3000003064, 'Remy Hughes', 'T3A'),
+  (3000003065, 'Marlowe Price', 'T3A'),
+  (3000003066, 'Indigo Cooper', 'T3A'),
+  (3000003067, 'Wren Morrison', 'T3A'),
+  (3000003068, 'Sloane Ramirez', 'T3A'),
+  (3000003069, 'Lennox Bailey', 'T3A'),
+  (3000003070, 'Baylor Reid', 'T3A'),
+  (3000003071, 'Cassidy Rivera', 'T3A'),
+  (3000003072, 'Quinn Powell', 'T3A'),
+  (3000003073, 'Rory Fleming', 'T3A'),
+  (3000003074, 'Shiloh Murray', 'T3A'),
+  (3000003075, 'Spencer Diaz', 'T3A'),
+  (3000003076, 'Alex Kim', 'T3B'),
+  (3000003077, 'Jordan Rivera', 'T3B'),
+  (3000003078, 'Morgan Lee', 'T3B'),
+  (3000003079, 'Riley Chen', 'T3B'),
+  (3000003080, 'Quinn Wang', 'T3B'),
+  (3000003081, 'Avery Martinez', 'T3B'),
+  (3000003082, 'Taylor Johnson', 'T3B'),
+  (3000003083, 'Drew Thompson', 'T3B'),
+  (3000003084, 'Jesse Garcia', 'T3B'),
+  (3000003085, 'Lane Williams', 'T3B'),
+  (3000003086, 'Sage Brown', 'T3B'),
+  (3000003087, 'River Davis', 'T3B'),
+  (3000003088, 'Phoenix Miller', 'T3B'),
+  (3000003089, 'Noel Wilson', 'T3B'),
+  (3000003090, 'Reese Moore', 'T3B'),
+  (3000003091, 'Blair Taylor', 'T3B'),
+  (3000003092, 'Cameron Anderson', 'T3B'),
+  (3000003093, 'Finley Thomas', 'T3B'),
+  (3000003094, 'Jamie Jackson', 'T3B'),
+  (3000003095, 'Bailey White', 'T3B'),
+  (3000003096, 'Parker Harris', 'T3B'),
+  (3000003097, 'Logan Martin', 'T3B'),
+  (3000003098, 'Dakota Lewis', 'T3B'),
+  (3000003099, 'Skyler Robinson', 'T3B'),
+  (3000003100, 'Elliot Walker', 'T3B');
 
 -- ============================================================
--- 5. Responses for Preflight 2
---    Replace 'preflight-2' below with the actual assignment ID
---    if the user created it with a different slug.
---    Responses intentionally varied: some strong, some weak.
+-- 4. Responses — Preflight 1
 -- ============================================================
+INSERT INTO responses (student_id, assignment_id, answers, submitted_at, updated_at) VALUES
+  (3000003001, 'preflight-1', '{"q1": "About 45 minutes.", "q2": "I found the section on electric fields most interesting. The idea that a charged object can exert force on another object without touching it seems counterintuitive, but the field concept makes it click.", "q3": "They attract. The charged insulator creates an electric field that causes free electrons in the metal to redistribute — the near side becomes oppositely charged. Because Coulomb force scales as 1/r², the attraction between near surfaces dominates, giving a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003002, 'preflight-1', '{"q1": "30 minutes.", "q2": "I was confused by Coulomb''s law when there are multiple charges. Do you just add up all the forces? Also not sure how the constant k relates to permittivity of free space.", "q3": "They attract. This is electrostatic induction: the insulator''s charge causes free electrons in the conductor to shift, making the near face oppositely charged. The near-face attraction is stronger than the far-face repulsion, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003003, 'preflight-1', '{"q1": "1 hour.", "q2": "Most confusing was the difference between conductors and insulators at the atomic level. I understand conductors have free electrons but I''m not sure how many are really free per atom.", "q3": "They attract. The charged insulator polarizes the metal — free electrons move, leaving the near face with opposite charge. Even though the metal has zero net charge, the induced dipole creates a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003004, 'preflight-1', '{"q1": "20 minutes.", "q2": "The concept of electric flux was interesting but I don''t fully understand it yet. I get that it measures how much field passes through a surface but the math feels abstract.", "q3": "Attract. The insulator''s field induces charge separation in the conductor. The side closest to the insulator acquires opposite charge; the far side acquires like charge. The attractive force on the near face is stronger (shorter distance), so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003005, 'preflight-1', '{"q1": "About 40 minutes.", "q2": "I found the historical context about Coulomb''s experiments interesting. The section on superposition was confusing — I''m not sure whether you add force vectors or just magnitudes.", "q3": "They attract due to electrostatic induction. Free electrons in the conductor migrate toward the insulator if it is positive, making the near surface negative. Coulomb force decreases with distance, so attraction to the near face exceeds repulsion from the far face."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003006, 'preflight-1', '{"q1": "I skimmed it, maybe 15 minutes.", "q2": "I didn''t read it carefully enough to have specific questions.", "q3": "They attract. Free electrons in the metal respond to the electric field of the charged insulator. They pile up on the side closest to the insulator, making it oppositely charged. This charge imbalance produces a net attractive force even though the metal has no net charge."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003007, 'preflight-1', '{"q1": "50 minutes.", "q2": "What confused me most was the relationship between electric field lines and force. I know field lines point in the direction of force on a positive charge but I got turned around when thinking about negative charges.", "q3": "They attract. When the insulator comes close, it induces polarization in the conductor — no charge is transferred, but the distribution shifts so the near face has opposite sign. The net force is attractive because opposite charges are closer than like charges."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003008, 'preflight-1', '{"q1": "25 minutes.", "q2": "The part about quantization of charge was interesting — that all charge comes in multiples of e = 1.6×10⁻¹⁹ C. Also wasn''t sure what determines whether an object is a conductor or insulator.", "q3": "Attract. The electric field from the insulator polarizes the conductor: unlike charges move to the near face, like charges to the far face. The attractive force between near faces is stronger than the repulsive force between far faces because force falls as 1/r²."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003009, 'preflight-1', '{"q1": "35 minutes.", "q2": "Most interesting was learning that the electric force follows an inverse square law just like gravity. I''m curious whether this is a coincidence or has a deeper reason.", "q3": "They attract. The charged insulator induces an electric dipole in the metal — free electrons redistribute so one side is oppositely charged. Since this opposite charge faces the insulator, the net Coulomb force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003010, 'preflight-1', '{"q1": "1 hour 15 minutes.", "q2": "I was confused by the distinction between charge distribution on conductors vs insulators. For conductors charges go to the surface — but why exactly? And what happens on a sharp point?", "q3": "They attract. Induction causes free electrons in the metal to shift. If the insulator is positively charged, electrons bunch up on the near side, making it negative. The positive far side is further away, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003011, 'preflight-1', '{"q1": "About 45 min.", "q2": "The most confusing part was Gauss''s law. I sort of understand the concept but I''m not sure when to use it versus Coulomb''s law. Examples with spherical symmetry made sense but other geometries are less clear.", "q3": "They attract. The mechanism is electrostatic induction — the insulator''s charge creates a field that drives free electrons in the conductor to one side. The side nearer the insulator has opposite charge, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003012, 'preflight-1', '{"q1": "2 hours — went deep on it.", "q2": "Not sure yet — didn''t finish the reading.", "q3": "Attract. The metal becomes electrically polarized. Free electrons shift toward the near side if the insulator is positive, creating a negative near face and positive far face. The attractive force between near opposite charges exceeds the repulsive force from distant like charges."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003013, 'preflight-1', '{"q1": "About 30 minutes.", "q2": "Found the concept of test charges confusing — we define electric field using a small positive test charge, but does the test charge change the field we''re trying to measure?", "q3": "They attract. Even though the metal has zero net charge, the insulator induces a redistribution of free electrons. The near face becomes oppositely charged, and since the Coulomb force is stronger at shorter distances, the net effect is attraction."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003014, 'preflight-1', '{"q1": "15 minutes.", "q2": "The reading was interesting overall. I found the part about insulators and conductors most interesting because I hadn''t thought about it at the atomic level. Most confusing was vector addition of electric fields from multiple charges.", "q3": "They attract. This happens because of charge induction. The insulator''s field causes conduction electrons in the metal to move, concentrating opposite charge on the near face. The net attractive force arises because the induced opposite charge is closer to the insulator than the like charge."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003015, 'preflight-1', '{"q1": "1 hour 30 minutes.", "q2": "Did not read thoroughly.", "q3": "They attract. The free electrons in the conductor redistribute in response to the external field from the insulator. This produces an induced surface charge with opposite sign on the near face and a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003016, 'preflight-1', '{"q1": "Zero, I didn''t have time.", "q2": "I was most confused about the direction of electric field vectors when there are multiple source charges. Specifically, when you have both positive and negative charges nearby, which dominates?", "q3": "They attract. The charged insulator polarizes the metal by causing free electrons to migrate. The near side acquires opposite sign, and since the force between near surfaces is stronger than between far surfaces, there is a net attraction."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003017, 'preflight-1', '{"q1": "About an hour.", "q2": "Most interesting: how Coulomb measured electric force with a torsion balance. Most confusing: how superposition works in practice with more than two charges.", "q3": "They attract. The mechanism is electrostatic induction: the insulator''s field pushes or pulls the free electrons in the metal, creating a charge imbalance. The face closest to the insulator ends up with opposite sign, so the metal is attracted."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003018, 'preflight-1', '{"q1": "40 minutes.", "q2": "I found the connection between electric field and potential energy interesting but I''m confused about sign conventions. When is potential energy positive vs negative?", "q3": "They attract because of static electricity."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003019, 'preflight-1', '{"q1": "55 minutes.", "q2": "Most interesting: thinking about what charge really is at a fundamental level. Most confusing: the units — coulombs, newtons per coulomb, joules per coulomb — hard to keep straight.", "q3": "I think they attract. Something about the electrons in the metal moving toward the charged insulator."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003020, 'preflight-1', '{"q1": "Around 30 minutes.", "q2": "The reading was okay. I found the examples helpful but Gauss''s law was hard to follow.", "q3": "They attract. The charged insulator pulls on the metal because of electric forces."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003021, 'preflight-1', '{"q1": "I read for about 25 minutes.", "q2": ".", "q3": "Attract — the metal gets sort of charged because the insulator is nearby."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003022, 'preflight-1', '{"q1": "Close to an hour.", "q2": "I found charge quantization interesting. What I found confusing is the concept of charge density — surface vs volume charge density.", "q3": "They repel. Both objects have charges so they push away from each other."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003023, 'preflight-1', '{"q1": "About 35 minutes.", "q2": "Most interesting: the Millikan experiment measuring the electron''s charge. Most confusing: working through electric field vector components in 2D configurations.", "q3": "I think they repel since the insulator has a charge and that repels the neutral metal."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003024, 'preflight-1', '{"q1": "45 minutes.", "q2": "See above.", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003025, 'preflight-1', '{"q1": "1 hour.", "q2": "Most interesting: induced charges without transferring charge — just by proximity. Confusing: the formula for electric potential — how is it different from electric field?", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003026, 'preflight-1', '{"q1": "About 45 minutes.", "q2": "I found the section on electric fields most interesting. The idea that a charged object can exert force on another object without touching it seems counterintuitive, but the field concept makes it click.", "q3": "They attract. The charged insulator creates an electric field that causes free electrons in the metal to redistribute — the near side becomes oppositely charged. Because Coulomb force scales as 1/r², the attraction between near surfaces dominates, giving a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003027, 'preflight-1', '{"q1": "30 minutes.", "q2": "I was confused by Coulomb''s law when there are multiple charges. Do you just add up all the forces? Also not sure how the constant k relates to permittivity of free space.", "q3": "They attract. This is electrostatic induction: the insulator''s charge causes free electrons in the conductor to shift, making the near face oppositely charged. The near-face attraction is stronger than the far-face repulsion, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003028, 'preflight-1', '{"q1": "1 hour.", "q2": "Most confusing was the difference between conductors and insulators at the atomic level. I understand conductors have free electrons but I''m not sure how many are really free per atom.", "q3": "They attract. The charged insulator polarizes the metal — free electrons move, leaving the near face with opposite charge. Even though the metal has zero net charge, the induced dipole creates a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003029, 'preflight-1', '{"q1": "20 minutes.", "q2": "The concept of electric flux was interesting but I don''t fully understand it yet. I get that it measures how much field passes through a surface but the math feels abstract.", "q3": "Attract. The insulator''s field induces charge separation in the conductor. The side closest to the insulator acquires opposite charge; the far side acquires like charge. The attractive force on the near face is stronger (shorter distance), so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003030, 'preflight-1', '{"q1": "About 40 minutes.", "q2": "I found the historical context about Coulomb''s experiments interesting. The section on superposition was confusing — I''m not sure whether you add force vectors or just magnitudes.", "q3": "They attract due to electrostatic induction. Free electrons in the conductor migrate toward the insulator if it is positive, making the near surface negative. Coulomb force decreases with distance, so attraction to the near face exceeds repulsion from the far face."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003031, 'preflight-1', '{"q1": "I skimmed it, maybe 15 minutes.", "q2": "I didn''t read it carefully enough to have specific questions.", "q3": "They attract. Free electrons in the metal respond to the electric field of the charged insulator. They pile up on the side closest to the insulator, making it oppositely charged. This charge imbalance produces a net attractive force even though the metal has no net charge."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003032, 'preflight-1', '{"q1": "50 minutes.", "q2": "What confused me most was the relationship between electric field lines and force. I know field lines point in the direction of force on a positive charge but I got turned around when thinking about negative charges.", "q3": "They attract. When the insulator comes close, it induces polarization in the conductor — no charge is transferred, but the distribution shifts so the near face has opposite sign. The net force is attractive because opposite charges are closer than like charges."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003033, 'preflight-1', '{"q1": "25 minutes.", "q2": "The part about quantization of charge was interesting — that all charge comes in multiples of e = 1.6×10⁻¹⁹ C. Also wasn''t sure what determines whether an object is a conductor or insulator.", "q3": "Attract. The electric field from the insulator polarizes the conductor: unlike charges move to the near face, like charges to the far face. The attractive force between near faces is stronger than the repulsive force between far faces because force falls as 1/r²."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003034, 'preflight-1', '{"q1": "35 minutes.", "q2": "Most interesting was learning that the electric force follows an inverse square law just like gravity. I''m curious whether this is a coincidence or has a deeper reason.", "q3": "They attract. The charged insulator induces an electric dipole in the metal — free electrons redistribute so one side is oppositely charged. Since this opposite charge faces the insulator, the net Coulomb force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003035, 'preflight-1', '{"q1": "1 hour 15 minutes.", "q2": "I was confused by the distinction between charge distribution on conductors vs insulators. For conductors charges go to the surface — but why exactly? And what happens on a sharp point?", "q3": "They attract. Induction causes free electrons in the metal to shift. If the insulator is positively charged, electrons bunch up on the near side, making it negative. The positive far side is further away, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003036, 'preflight-1', '{"q1": "About 45 min.", "q2": "The most confusing part was Gauss''s law. I sort of understand the concept but I''m not sure when to use it versus Coulomb''s law. Examples with spherical symmetry made sense but other geometries are less clear.", "q3": "They attract. The mechanism is electrostatic induction — the insulator''s charge creates a field that drives free electrons in the conductor to one side. The side nearer the insulator has opposite charge, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003037, 'preflight-1', '{"q1": "2 hours — went deep on it.", "q2": "Not sure yet — didn''t finish the reading.", "q3": "Attract. The metal becomes electrically polarized. Free electrons shift toward the near side if the insulator is positive, creating a negative near face and positive far face. The attractive force between near opposite charges exceeds the repulsive force from distant like charges."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003038, 'preflight-1', '{"q1": "About 30 minutes.", "q2": "Found the concept of test charges confusing — we define electric field using a small positive test charge, but does the test charge change the field we''re trying to measure?", "q3": "They attract. Even though the metal has zero net charge, the insulator induces a redistribution of free electrons. The near face becomes oppositely charged, and since the Coulomb force is stronger at shorter distances, the net effect is attraction."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003039, 'preflight-1', '{"q1": "15 minutes.", "q2": "The reading was interesting overall. I found the part about insulators and conductors most interesting because I hadn''t thought about it at the atomic level. Most confusing was vector addition of electric fields from multiple charges.", "q3": "They attract. This happens because of charge induction. The insulator''s field causes conduction electrons in the metal to move, concentrating opposite charge on the near face. The net attractive force arises because the induced opposite charge is closer to the insulator than the like charge."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003040, 'preflight-1', '{"q1": "1 hour 30 minutes.", "q2": "Did not read thoroughly.", "q3": "They attract. The free electrons in the conductor redistribute in response to the external field from the insulator. This produces an induced surface charge with opposite sign on the near face and a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003041, 'preflight-1', '{"q1": "Zero, I didn''t have time.", "q2": "I was most confused about the direction of electric field vectors when there are multiple source charges. Specifically, when you have both positive and negative charges nearby, which dominates?", "q3": "They attract. The charged insulator polarizes the metal by causing free electrons to migrate. The near side acquires opposite sign, and since the force between near surfaces is stronger than between far surfaces, there is a net attraction."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003042, 'preflight-1', '{"q1": "About an hour.", "q2": "Most interesting: how Coulomb measured electric force with a torsion balance. Most confusing: how superposition works in practice with more than two charges.", "q3": "They attract. The mechanism is electrostatic induction: the insulator''s field pushes or pulls the free electrons in the metal, creating a charge imbalance. The face closest to the insulator ends up with opposite sign, so the metal is attracted."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003043, 'preflight-1', '{"q1": "40 minutes.", "q2": "I found the connection between electric field and potential energy interesting but I''m confused about sign conventions. When is potential energy positive vs negative?", "q3": "They attract because of static electricity."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003044, 'preflight-1', '{"q1": "55 minutes.", "q2": "Most interesting: thinking about what charge really is at a fundamental level. Most confusing: the units — coulombs, newtons per coulomb, joules per coulomb — hard to keep straight.", "q3": "I think they attract. Something about the electrons in the metal moving toward the charged insulator."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003045, 'preflight-1', '{"q1": "Around 30 minutes.", "q2": "The reading was okay. I found the examples helpful but Gauss''s law was hard to follow.", "q3": "They attract. The charged insulator pulls on the metal because of electric forces."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003046, 'preflight-1', '{"q1": "I read for about 25 minutes.", "q2": ".", "q3": "Attract — the metal gets sort of charged because the insulator is nearby."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003047, 'preflight-1', '{"q1": "Close to an hour.", "q2": "I found charge quantization interesting. What I found confusing is the concept of charge density — surface vs volume charge density.", "q3": "They repel. Both objects have charges so they push away from each other."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003048, 'preflight-1', '{"q1": "About 35 minutes.", "q2": "Most interesting: the Millikan experiment measuring the electron''s charge. Most confusing: working through electric field vector components in 2D configurations.", "q3": "I think they repel since the insulator has a charge and that repels the neutral metal."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003049, 'preflight-1', '{"q1": "45 minutes.", "q2": "See above.", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003050, 'preflight-1', '{"q1": "1 hour.", "q2": "Most interesting: induced charges without transferring charge — just by proximity. Confusing: the formula for electric potential — how is it different from electric field?", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003051, 'preflight-1', '{"q1": "About 45 minutes.", "q2": "I found the section on electric fields most interesting. The idea that a charged object can exert force on another object without touching it seems counterintuitive, but the field concept makes it click.", "q3": "They attract. The charged insulator creates an electric field that causes free electrons in the metal to redistribute — the near side becomes oppositely charged. Because Coulomb force scales as 1/r², the attraction between near surfaces dominates, giving a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003052, 'preflight-1', '{"q1": "30 minutes.", "q2": "I was confused by Coulomb''s law when there are multiple charges. Do you just add up all the forces? Also not sure how the constant k relates to permittivity of free space.", "q3": "They attract. This is electrostatic induction: the insulator''s charge causes free electrons in the conductor to shift, making the near face oppositely charged. The near-face attraction is stronger than the far-face repulsion, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003053, 'preflight-1', '{"q1": "1 hour.", "q2": "Most confusing was the difference between conductors and insulators at the atomic level. I understand conductors have free electrons but I''m not sure how many are really free per atom.", "q3": "They attract. The charged insulator polarizes the metal — free electrons move, leaving the near face with opposite charge. Even though the metal has zero net charge, the induced dipole creates a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003054, 'preflight-1', '{"q1": "20 minutes.", "q2": "The concept of electric flux was interesting but I don''t fully understand it yet. I get that it measures how much field passes through a surface but the math feels abstract.", "q3": "Attract. The insulator''s field induces charge separation in the conductor. The side closest to the insulator acquires opposite charge; the far side acquires like charge. The attractive force on the near face is stronger (shorter distance), so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003055, 'preflight-1', '{"q1": "About 40 minutes.", "q2": "I found the historical context about Coulomb''s experiments interesting. The section on superposition was confusing — I''m not sure whether you add force vectors or just magnitudes.", "q3": "They attract due to electrostatic induction. Free electrons in the conductor migrate toward the insulator if it is positive, making the near surface negative. Coulomb force decreases with distance, so attraction to the near face exceeds repulsion from the far face."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003056, 'preflight-1', '{"q1": "I skimmed it, maybe 15 minutes.", "q2": "I didn''t read it carefully enough to have specific questions.", "q3": "They attract. Free electrons in the metal respond to the electric field of the charged insulator. They pile up on the side closest to the insulator, making it oppositely charged. This charge imbalance produces a net attractive force even though the metal has no net charge."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003057, 'preflight-1', '{"q1": "50 minutes.", "q2": "What confused me most was the relationship between electric field lines and force. I know field lines point in the direction of force on a positive charge but I got turned around when thinking about negative charges.", "q3": "They attract. When the insulator comes close, it induces polarization in the conductor — no charge is transferred, but the distribution shifts so the near face has opposite sign. The net force is attractive because opposite charges are closer than like charges."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003058, 'preflight-1', '{"q1": "25 minutes.", "q2": "The part about quantization of charge was interesting — that all charge comes in multiples of e = 1.6×10⁻¹⁹ C. Also wasn''t sure what determines whether an object is a conductor or insulator.", "q3": "Attract. The electric field from the insulator polarizes the conductor: unlike charges move to the near face, like charges to the far face. The attractive force between near faces is stronger than the repulsive force between far faces because force falls as 1/r²."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003059, 'preflight-1', '{"q1": "35 minutes.", "q2": "Most interesting was learning that the electric force follows an inverse square law just like gravity. I''m curious whether this is a coincidence or has a deeper reason.", "q3": "They attract. The charged insulator induces an electric dipole in the metal — free electrons redistribute so one side is oppositely charged. Since this opposite charge faces the insulator, the net Coulomb force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003060, 'preflight-1', '{"q1": "1 hour 15 minutes.", "q2": "I was confused by the distinction between charge distribution on conductors vs insulators. For conductors charges go to the surface — but why exactly? And what happens on a sharp point?", "q3": "They attract. Induction causes free electrons in the metal to shift. If the insulator is positively charged, electrons bunch up on the near side, making it negative. The positive far side is further away, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003061, 'preflight-1', '{"q1": "About 45 min.", "q2": "The most confusing part was Gauss''s law. I sort of understand the concept but I''m not sure when to use it versus Coulomb''s law. Examples with spherical symmetry made sense but other geometries are less clear.", "q3": "They attract. The mechanism is electrostatic induction — the insulator''s charge creates a field that drives free electrons in the conductor to one side. The side nearer the insulator has opposite charge, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003062, 'preflight-1', '{"q1": "2 hours — went deep on it.", "q2": "Not sure yet — didn''t finish the reading.", "q3": "Attract. The metal becomes electrically polarized. Free electrons shift toward the near side if the insulator is positive, creating a negative near face and positive far face. The attractive force between near opposite charges exceeds the repulsive force from distant like charges."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003063, 'preflight-1', '{"q1": "About 30 minutes.", "q2": "Found the concept of test charges confusing — we define electric field using a small positive test charge, but does the test charge change the field we''re trying to measure?", "q3": "They attract. Even though the metal has zero net charge, the insulator induces a redistribution of free electrons. The near face becomes oppositely charged, and since the Coulomb force is stronger at shorter distances, the net effect is attraction."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003064, 'preflight-1', '{"q1": "15 minutes.", "q2": "The reading was interesting overall. I found the part about insulators and conductors most interesting because I hadn''t thought about it at the atomic level. Most confusing was vector addition of electric fields from multiple charges.", "q3": "They attract. This happens because of charge induction. The insulator''s field causes conduction electrons in the metal to move, concentrating opposite charge on the near face. The net attractive force arises because the induced opposite charge is closer to the insulator than the like charge."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003065, 'preflight-1', '{"q1": "1 hour 30 minutes.", "q2": "Did not read thoroughly.", "q3": "They attract. The free electrons in the conductor redistribute in response to the external field from the insulator. This produces an induced surface charge with opposite sign on the near face and a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003066, 'preflight-1', '{"q1": "Zero, I didn''t have time.", "q2": "I was most confused about the direction of electric field vectors when there are multiple source charges. Specifically, when you have both positive and negative charges nearby, which dominates?", "q3": "They attract. The charged insulator polarizes the metal by causing free electrons to migrate. The near side acquires opposite sign, and since the force between near surfaces is stronger than between far surfaces, there is a net attraction."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003067, 'preflight-1', '{"q1": "About an hour.", "q2": "Most interesting: how Coulomb measured electric force with a torsion balance. Most confusing: how superposition works in practice with more than two charges.", "q3": "They attract. The mechanism is electrostatic induction: the insulator''s field pushes or pulls the free electrons in the metal, creating a charge imbalance. The face closest to the insulator ends up with opposite sign, so the metal is attracted."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003068, 'preflight-1', '{"q1": "40 minutes.", "q2": "I found the connection between electric field and potential energy interesting but I''m confused about sign conventions. When is potential energy positive vs negative?", "q3": "They attract because of static electricity."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003069, 'preflight-1', '{"q1": "55 minutes.", "q2": "Most interesting: thinking about what charge really is at a fundamental level. Most confusing: the units — coulombs, newtons per coulomb, joules per coulomb — hard to keep straight.", "q3": "I think they attract. Something about the electrons in the metal moving toward the charged insulator."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003070, 'preflight-1', '{"q1": "Around 30 minutes.", "q2": "The reading was okay. I found the examples helpful but Gauss''s law was hard to follow.", "q3": "They attract. The charged insulator pulls on the metal because of electric forces."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003071, 'preflight-1', '{"q1": "I read for about 25 minutes.", "q2": ".", "q3": "Attract — the metal gets sort of charged because the insulator is nearby."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003072, 'preflight-1', '{"q1": "Close to an hour.", "q2": "I found charge quantization interesting. What I found confusing is the concept of charge density — surface vs volume charge density.", "q3": "They repel. Both objects have charges so they push away from each other."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003073, 'preflight-1', '{"q1": "About 35 minutes.", "q2": "Most interesting: the Millikan experiment measuring the electron''s charge. Most confusing: working through electric field vector components in 2D configurations.", "q3": "I think they repel since the insulator has a charge and that repels the neutral metal."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003074, 'preflight-1', '{"q1": "45 minutes.", "q2": "See above.", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003075, 'preflight-1', '{"q1": "1 hour.", "q2": "Most interesting: induced charges without transferring charge — just by proximity. Confusing: the formula for electric potential — how is it different from electric field?", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003076, 'preflight-1', '{"q1": "About 45 minutes.", "q2": "I found the section on electric fields most interesting. The idea that a charged object can exert force on another object without touching it seems counterintuitive, but the field concept makes it click.", "q3": "They attract. The charged insulator creates an electric field that causes free electrons in the metal to redistribute — the near side becomes oppositely charged. Because Coulomb force scales as 1/r², the attraction between near surfaces dominates, giving a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003077, 'preflight-1', '{"q1": "30 minutes.", "q2": "I was confused by Coulomb''s law when there are multiple charges. Do you just add up all the forces? Also not sure how the constant k relates to permittivity of free space.", "q3": "They attract. This is electrostatic induction: the insulator''s charge causes free electrons in the conductor to shift, making the near face oppositely charged. The near-face attraction is stronger than the far-face repulsion, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003078, 'preflight-1', '{"q1": "1 hour.", "q2": "Most confusing was the difference between conductors and insulators at the atomic level. I understand conductors have free electrons but I''m not sure how many are really free per atom.", "q3": "They attract. The charged insulator polarizes the metal — free electrons move, leaving the near face with opposite charge. Even though the metal has zero net charge, the induced dipole creates a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003079, 'preflight-1', '{"q1": "20 minutes.", "q2": "The concept of electric flux was interesting but I don''t fully understand it yet. I get that it measures how much field passes through a surface but the math feels abstract.", "q3": "Attract. The insulator''s field induces charge separation in the conductor. The side closest to the insulator acquires opposite charge; the far side acquires like charge. The attractive force on the near face is stronger (shorter distance), so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003080, 'preflight-1', '{"q1": "About 40 minutes.", "q2": "I found the historical context about Coulomb''s experiments interesting. The section on superposition was confusing — I''m not sure whether you add force vectors or just magnitudes.", "q3": "They attract due to electrostatic induction. Free electrons in the conductor migrate toward the insulator if it is positive, making the near surface negative. Coulomb force decreases with distance, so attraction to the near face exceeds repulsion from the far face."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003081, 'preflight-1', '{"q1": "I skimmed it, maybe 15 minutes.", "q2": "I didn''t read it carefully enough to have specific questions.", "q3": "They attract. Free electrons in the metal respond to the electric field of the charged insulator. They pile up on the side closest to the insulator, making it oppositely charged. This charge imbalance produces a net attractive force even though the metal has no net charge."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003082, 'preflight-1', '{"q1": "50 minutes.", "q2": "What confused me most was the relationship between electric field lines and force. I know field lines point in the direction of force on a positive charge but I got turned around when thinking about negative charges.", "q3": "They attract. When the insulator comes close, it induces polarization in the conductor — no charge is transferred, but the distribution shifts so the near face has opposite sign. The net force is attractive because opposite charges are closer than like charges."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003083, 'preflight-1', '{"q1": "25 minutes.", "q2": "The part about quantization of charge was interesting — that all charge comes in multiples of e = 1.6×10⁻¹⁹ C. Also wasn''t sure what determines whether an object is a conductor or insulator.", "q3": "Attract. The electric field from the insulator polarizes the conductor: unlike charges move to the near face, like charges to the far face. The attractive force between near faces is stronger than the repulsive force between far faces because force falls as 1/r²."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003084, 'preflight-1', '{"q1": "35 minutes.", "q2": "Most interesting was learning that the electric force follows an inverse square law just like gravity. I''m curious whether this is a coincidence or has a deeper reason.", "q3": "They attract. The charged insulator induces an electric dipole in the metal — free electrons redistribute so one side is oppositely charged. Since this opposite charge faces the insulator, the net Coulomb force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003085, 'preflight-1', '{"q1": "1 hour 15 minutes.", "q2": "I was confused by the distinction between charge distribution on conductors vs insulators. For conductors charges go to the surface — but why exactly? And what happens on a sharp point?", "q3": "They attract. Induction causes free electrons in the metal to shift. If the insulator is positively charged, electrons bunch up on the near side, making it negative. The positive far side is further away, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003086, 'preflight-1', '{"q1": "About 45 min.", "q2": "The most confusing part was Gauss''s law. I sort of understand the concept but I''m not sure when to use it versus Coulomb''s law. Examples with spherical symmetry made sense but other geometries are less clear.", "q3": "They attract. The mechanism is electrostatic induction — the insulator''s charge creates a field that drives free electrons in the conductor to one side. The side nearer the insulator has opposite charge, so the net force is attractive."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003087, 'preflight-1', '{"q1": "2 hours — went deep on it.", "q2": "Not sure yet — didn''t finish the reading.", "q3": "Attract. The metal becomes electrically polarized. Free electrons shift toward the near side if the insulator is positive, creating a negative near face and positive far face. The attractive force between near opposite charges exceeds the repulsive force from distant like charges."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003088, 'preflight-1', '{"q1": "About 30 minutes.", "q2": "Found the concept of test charges confusing — we define electric field using a small positive test charge, but does the test charge change the field we''re trying to measure?", "q3": "They attract. Even though the metal has zero net charge, the insulator induces a redistribution of free electrons. The near face becomes oppositely charged, and since the Coulomb force is stronger at shorter distances, the net effect is attraction."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003089, 'preflight-1', '{"q1": "15 minutes.", "q2": "The reading was interesting overall. I found the part about insulators and conductors most interesting because I hadn''t thought about it at the atomic level. Most confusing was vector addition of electric fields from multiple charges.", "q3": "They attract. This happens because of charge induction. The insulator''s field causes conduction electrons in the metal to move, concentrating opposite charge on the near face. The net attractive force arises because the induced opposite charge is closer to the insulator than the like charge."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003090, 'preflight-1', '{"q1": "1 hour 30 minutes.", "q2": "Did not read thoroughly.", "q3": "They attract. The free electrons in the conductor redistribute in response to the external field from the insulator. This produces an induced surface charge with opposite sign on the near face and a net attractive force."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003091, 'preflight-1', '{"q1": "Zero, I didn''t have time.", "q2": "I was most confused about the direction of electric field vectors when there are multiple source charges. Specifically, when you have both positive and negative charges nearby, which dominates?", "q3": "They attract. The charged insulator polarizes the metal by causing free electrons to migrate. The near side acquires opposite sign, and since the force between near surfaces is stronger than between far surfaces, there is a net attraction."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003092, 'preflight-1', '{"q1": "About an hour.", "q2": "Most interesting: how Coulomb measured electric force with a torsion balance. Most confusing: how superposition works in practice with more than two charges.", "q3": "They attract. The mechanism is electrostatic induction: the insulator''s field pushes or pulls the free electrons in the metal, creating a charge imbalance. The face closest to the insulator ends up with opposite sign, so the metal is attracted."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003093, 'preflight-1', '{"q1": "40 minutes.", "q2": "I found the connection between electric field and potential energy interesting but I''m confused about sign conventions. When is potential energy positive vs negative?", "q3": "They attract because of static electricity."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003094, 'preflight-1', '{"q1": "55 minutes.", "q2": "Most interesting: thinking about what charge really is at a fundamental level. Most confusing: the units — coulombs, newtons per coulomb, joules per coulomb — hard to keep straight.", "q3": "I think they attract. Something about the electrons in the metal moving toward the charged insulator."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003095, 'preflight-1', '{"q1": "Around 30 minutes.", "q2": "The reading was okay. I found the examples helpful but Gauss''s law was hard to follow.", "q3": "They attract. The charged insulator pulls on the metal because of electric forces."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003096, 'preflight-1', '{"q1": "I read for about 25 minutes.", "q2": ".", "q3": "Attract — the metal gets sort of charged because the insulator is nearby."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003097, 'preflight-1', '{"q1": "Close to an hour.", "q2": "I found charge quantization interesting. What I found confusing is the concept of charge density — surface vs volume charge density.", "q3": "They repel. Both objects have charges so they push away from each other."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003098, 'preflight-1', '{"q1": "About 35 minutes.", "q2": "Most interesting: the Millikan experiment measuring the electron''s charge. Most confusing: working through electric field vector components in 2D configurations.", "q3": "I think they repel since the insulator has a charge and that repels the neutral metal."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003099, 'preflight-1', '{"q1": "45 minutes.", "q2": "See above.", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003100, 'preflight-1', '{"q1": "1 hour.", "q2": "Most interesting: induced charges without transferring charge — just by proximity. Confusing: the formula for electric potential — how is it different from electric field?", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00');
 
--- Note: Only insert if preflight-2 exists in your assignments table.
--- If your second preflight has a different ID, replace 'preflight-2' below.
-
--- Uncomment and run once you know the preflight-2 assignment ID:
-/*
-INSERT INTO responses (student_id, assignment_id, answers) VALUES
-  (3000001001, 'preflight-2', '{"q1": "30 min.", "q2": "Confused about Newton 2nd law sign conventions.", "q3": "Net force equals mass times acceleration. Direction of acceleration is same as direction of net force."}'::jsonb),
-  (3000001002, 'preflight-2', '{"q1": "45 min.", "q2": "Interesting that inertia doesn t have units of its own really.", "q3": "If net force is zero, the object stays at rest or moves at constant velocity - Newton 1st law."}'::jsonb),
-  (3000001011, 'preflight-2', '{"q1": "1 hour.", "q2": "The difference between mass and weight was confusing at first.", "q3": "F=ma so acceleration is in same direction as the net force applied."}'::jsonb),
-  (3000001021, 'preflight-2', '{"q1": "40 min.", "q2": "Most interesting was the tension in ropes and how it transmits force.", "q3": "Newton 2nd law: the net force on an object equals its mass times its acceleration. This is a vector equation."}'::jsonb)
-ON CONFLICT (student_id, assignment_id) DO UPDATE
-  SET answers = EXCLUDED.answers, updated_at = NOW();
-*/
+-- ============================================================
+-- 5. Responses — Preflight 2
+-- ============================================================
+INSERT INTO responses (student_id, assignment_id, answers, submitted_at, updated_at) VALUES
+  (3000003001, 'preflight-2', '{"q1": "About 45 minutes.", "q2": "Most interesting: Malus''s Law and how intensity depends on cos²θ. Confusing: why cos² and not just cos?", "q3": "The two polarizers are oriented at different angles — their transmission axes are not aligned. The first polarizer creates linearly polarized light. By Malus''s Law, when this light hits the second polarizer at angle θ, the transmitted intensity is I = I₀cos²θ. If θ is large (near 90°), almost no light passes through, making the source appear very dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003002, 'preflight-2', '{"q1": "30 minutes.", "q2": "I found Brewster''s angle interesting — at a specific angle, reflected light is completely polarized. What confused me was how polarization direction relates to the plane of incidence.", "q3": "The polarizers have different transmission axes. The first creates linearly polarized light; the second transmits only the fraction given by Malus''s Law: I = I₀cos²θ where θ is the angle between the axes. A large angle gives a small cos²θ and thus a dim source. At θ = 90° no light passes at all."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003003, 'preflight-2', '{"q1": "1 hour.", "q2": "Interesting: polarized sunglasses work by filtering out reflected glare, which is horizontally polarized. Confusing: I don''t fully understand why reflected light becomes polarized.", "q3": "The two linear polarizers are rotated relative to each other. After the first polarizer, the light is linearly polarized. The second polarizer only transmits the component along its own axis — intensity I₀cos²θ by Malus''s Law. With a large angle between them, the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003004, 'preflight-2', '{"q1": "25 minutes.", "q2": "Most confusing was Malus''s Law — I can follow the math but I''m not sure why intensity goes as cos² rather than cos.", "q3": "The dimness results from the angular misalignment of the two polarizers. Malus''s Law says transmitted intensity equals I₀cos²θ where θ is the angle between polarizer axes. If they are nearly crossed (θ near 90°), the intensity reaching your eye is very low."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003005, 'preflight-2', '{"q1": "About 40 minutes.", "q2": "Interesting: when two polarizers are perpendicular (crossed), no light gets through at all. Confusing: what does ''unpolarized light'' mean at the level of individual photons?", "q3": "The polarizers are set at an angle. The first restricts light to one plane; the second transmits only the cos²θ fraction (Malus''s Law). The combined effect is a large reduction in intensity, which is why the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003006, 'preflight-2', '{"q1": "I skimmed it, maybe 20 minutes.", "q2": "Birefringence was interesting but confusing — how can a material have two different indices of refraction?", "q3": "The two polarizers have their transmission axes at an angle to each other. The first creates linearly polarized light. The second only allows through the component aligned with its own axis. The larger the angle, the less light gets through — that''s why the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003007, 'preflight-2', '{"q1": "50 minutes.", "q2": "Interesting: the sky is polarized and you can see it with polaroid glasses. Confusing: the concept of the plane of polarization and how it relates to the wave.", "q3": "The polarizers are oriented at different angles. After the first, light is polarized in one direction. The second only passes the fraction aligned with its axis. If they don''t line up, only part of the light makes it through, reducing brightness significantly."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003008, 'preflight-2', '{"q1": "35 minutes.", "q2": "Found 3D movies interesting — they use polarization to send different images to each eye. What I didn''t fully understand was the difference between linear and circular polarization.", "q3": "The two polarizers are misaligned — their axes aren''t parallel. The first creates polarized light; the second transmits only the component matching its own axis. A large angle means almost no light is transmitted."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003009, 'preflight-2', '{"q1": "1 hour 15 minutes.", "q2": "Most confusing: the derivation of Malus''s Law. I understand the end result but not where cos² comes from physically.", "q3": "The polarizers are rotated relative to each other so their axes aren''t aligned. Light becomes polarized after the first filter. The second only passes the component that matches its axis. The bigger the angle, the less light passes through and the dimmer the source."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003010, 'preflight-2', '{"q1": "About 30 minutes.", "q2": "Interesting: light is a transverse wave and polarization is about which direction it oscillates. Confusing: can longitudinal waves be polarized?", "q3": "The dimness comes from the orientation of the two polarizers. After the first, light is linearly polarized. The second transmits only the fraction aligned with its transmission axis — if the two are nearly perpendicular, almost no light gets through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003011, 'preflight-2', '{"q1": "2 hours.", "q2": "Most interesting: reflected sunlight is polarized horizontally — that explains why polaroid sunglasses work. Confused about Brewster''s angle and how to calculate it.", "q3": "The first polarizer polarizes the light in one direction. The second is at some angle to the first, so it only transmits the portion aligned with its axis. With a large angle, much of the light is blocked."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003012, 'preflight-2', '{"q1": "15 minutes.", "q2": "Found polarization by scattering interesting — why does scattered light become polarized?", "q3": "The two polarizers are at an angle. The first creates linearly polarized light. The second only allows through the component aligned with its own axis. At large angles, very little passes through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003013, 'preflight-2', '{"q1": "About an hour.", "q2": "Confusing: the notation for e-ray and o-ray in birefringent materials. Interesting: some materials can rotate the plane of polarization (optical activity).", "q3": "The polarizers are crossed or nearly crossed. After the first, you have polarized light. The second only passes the fraction matching its transmission direction. With a large angle between them, only a tiny fraction reaches your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003014, 'preflight-2', '{"q1": "40 minutes.", "q2": "Most confusing: the relationship between the polarization axis and the electric field direction. I know light is an EM wave but I''m not sure which direction E points relative to the polarizer.", "q3": "The polarizers are oriented differently. The first polarizes the light; the second only lets through the component aligned with its axis. If the axes are nearly perpendicular, the source appears very dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003015, 'preflight-2', '{"q1": "55 minutes.", "q2": "Not sure yet — didn''t finish the reading.", "q3": "The two polarizers are at an angle to each other. The first restricts light to one plane of vibration; the second then transmits only what aligns with its axis. The result is significantly reduced intensity."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003016, 'preflight-2', '{"q1": "Zero, I didn''t have time.", "q2": "Interesting: you can use polarization to measure the concentration of sugar in solution. Confusing: how does a quarter-wave plate convert linear to circular polarization?", "q3": "The polarizers have different orientations. After passing through the first, light is polarized. The second blocks all but the component aligned with its axis. Depending on the angle, most of the light is blocked, making the source look dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003017, 'preflight-2', '{"q1": "Around 30 minutes.", "q2": "I found the section on LCD screens really practical. The way they use polarization to control each pixel was cool. Confusing: the phase retardation explanation.", "q3": "The two polarizers are positioned at an angle to each other. The first creates polarized light, and the second transmits only the portion aligned with its transmission axis. This causes a large reduction in the intensity of the light reaching your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003018, 'preflight-2', '{"q1": "45 minutes.", "q2": "Most confusing: I''m not sure how Malus''s Law connects to the wave model of light. I can apply the formula but I don''t have a physical picture of why cos² appears.", "q3": "The polarizers are filtering the light. Each lets through only light vibrating in one direction. With two oriented differently, very little light makes it through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003019, 'preflight-2', '{"q1": "I read for about 25 minutes.", "q2": "Did not read thoroughly.", "q3": "Polarizers block most light that doesn''t match their polarization direction. Having two in series means even more is blocked before it reaches your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003020, 'preflight-2', '{"q1": "Close to an hour.", "q2": "Interesting: that the intensity after two crossed polarizers is exactly zero — not just small but zero. I found this counterintuitive at first.", "q3": "Each polarizer filters out some light. With two in a row, the total filtered is greater, so the source appears dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003021, 'preflight-2', '{"q1": "About 35 minutes.", "q2": ".", "q3": "The two polarizers each block part of the light. Combined, they let through only a small fraction of the original, making the source look dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003022, 'preflight-2', '{"q1": "1 hour.", "q2": "See above.", "q3": "The angle between the polarizers blocks most of the light from getting through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003023, 'preflight-2', '{"q1": "Didn''t get to it.", "q2": "Most interesting: the rainbow is partially polarized. Most confusing: the math for intensity in partially polarized light.", "q3": "The polarizers are oriented to reduce the intensity of the light when viewed together."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003024, 'preflight-2', '{"q1": "About 50 minutes.", "q2": "I found the examples about photography filters helpful. Most confusing was the concept of degree of polarization.", "q3": "Light bounces between the two polarizers and loses most of its energy before reaching your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003025, 'preflight-2', '{"q1": "1 hour 30 minutes.", "q2": "Interesting: Polaroid sunglasses reduce glare from horizontal surfaces specifically. I wasn''t sure why horizontal surfaces produce horizontally polarized light.", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003026, 'preflight-2', '{"q1": "About 45 minutes.", "q2": "Most interesting: Malus''s Law and how intensity depends on cos²θ. Confusing: why cos² and not just cos?", "q3": "The two polarizers are oriented at different angles — their transmission axes are not aligned. The first polarizer creates linearly polarized light. By Malus''s Law, when this light hits the second polarizer at angle θ, the transmitted intensity is I = I₀cos²θ. If θ is large (near 90°), almost no light passes through, making the source appear very dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003027, 'preflight-2', '{"q1": "30 minutes.", "q2": "I found Brewster''s angle interesting — at a specific angle, reflected light is completely polarized. What confused me was how polarization direction relates to the plane of incidence.", "q3": "The polarizers have different transmission axes. The first creates linearly polarized light; the second transmits only the fraction given by Malus''s Law: I = I₀cos²θ where θ is the angle between the axes. A large angle gives a small cos²θ and thus a dim source. At θ = 90° no light passes at all."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003028, 'preflight-2', '{"q1": "1 hour.", "q2": "Interesting: polarized sunglasses work by filtering out reflected glare, which is horizontally polarized. Confusing: I don''t fully understand why reflected light becomes polarized.", "q3": "The two linear polarizers are rotated relative to each other. After the first polarizer, the light is linearly polarized. The second polarizer only transmits the component along its own axis — intensity I₀cos²θ by Malus''s Law. With a large angle between them, the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003029, 'preflight-2', '{"q1": "25 minutes.", "q2": "Most confusing was Malus''s Law — I can follow the math but I''m not sure why intensity goes as cos² rather than cos.", "q3": "The dimness results from the angular misalignment of the two polarizers. Malus''s Law says transmitted intensity equals I₀cos²θ where θ is the angle between polarizer axes. If they are nearly crossed (θ near 90°), the intensity reaching your eye is very low."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003030, 'preflight-2', '{"q1": "About 40 minutes.", "q2": "Interesting: when two polarizers are perpendicular (crossed), no light gets through at all. Confusing: what does ''unpolarized light'' mean at the level of individual photons?", "q3": "The polarizers are set at an angle. The first restricts light to one plane; the second transmits only the cos²θ fraction (Malus''s Law). The combined effect is a large reduction in intensity, which is why the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003031, 'preflight-2', '{"q1": "I skimmed it, maybe 20 minutes.", "q2": "Birefringence was interesting but confusing — how can a material have two different indices of refraction?", "q3": "The two polarizers have their transmission axes at an angle to each other. The first creates linearly polarized light. The second only allows through the component aligned with its own axis. The larger the angle, the less light gets through — that''s why the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003032, 'preflight-2', '{"q1": "50 minutes.", "q2": "Interesting: the sky is polarized and you can see it with polaroid glasses. Confusing: the concept of the plane of polarization and how it relates to the wave.", "q3": "The polarizers are oriented at different angles. After the first, light is polarized in one direction. The second only passes the fraction aligned with its axis. If they don''t line up, only part of the light makes it through, reducing brightness significantly."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003033, 'preflight-2', '{"q1": "35 minutes.", "q2": "Found 3D movies interesting — they use polarization to send different images to each eye. What I didn''t fully understand was the difference between linear and circular polarization.", "q3": "The two polarizers are misaligned — their axes aren''t parallel. The first creates polarized light; the second transmits only the component matching its own axis. A large angle means almost no light is transmitted."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003034, 'preflight-2', '{"q1": "1 hour 15 minutes.", "q2": "Most confusing: the derivation of Malus''s Law. I understand the end result but not where cos² comes from physically.", "q3": "The polarizers are rotated relative to each other so their axes aren''t aligned. Light becomes polarized after the first filter. The second only passes the component that matches its axis. The bigger the angle, the less light passes through and the dimmer the source."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003035, 'preflight-2', '{"q1": "About 30 minutes.", "q2": "Interesting: light is a transverse wave and polarization is about which direction it oscillates. Confusing: can longitudinal waves be polarized?", "q3": "The dimness comes from the orientation of the two polarizers. After the first, light is linearly polarized. The second transmits only the fraction aligned with its transmission axis — if the two are nearly perpendicular, almost no light gets through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003036, 'preflight-2', '{"q1": "2 hours.", "q2": "Most interesting: reflected sunlight is polarized horizontally — that explains why polaroid sunglasses work. Confused about Brewster''s angle and how to calculate it.", "q3": "The first polarizer polarizes the light in one direction. The second is at some angle to the first, so it only transmits the portion aligned with its axis. With a large angle, much of the light is blocked."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003037, 'preflight-2', '{"q1": "15 minutes.", "q2": "Found polarization by scattering interesting — why does scattered light become polarized?", "q3": "The two polarizers are at an angle. The first creates linearly polarized light. The second only allows through the component aligned with its own axis. At large angles, very little passes through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003038, 'preflight-2', '{"q1": "About an hour.", "q2": "Confusing: the notation for e-ray and o-ray in birefringent materials. Interesting: some materials can rotate the plane of polarization (optical activity).", "q3": "The polarizers are crossed or nearly crossed. After the first, you have polarized light. The second only passes the fraction matching its transmission direction. With a large angle between them, only a tiny fraction reaches your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003039, 'preflight-2', '{"q1": "40 minutes.", "q2": "Most confusing: the relationship between the polarization axis and the electric field direction. I know light is an EM wave but I''m not sure which direction E points relative to the polarizer.", "q3": "The polarizers are oriented differently. The first polarizes the light; the second only lets through the component aligned with its axis. If the axes are nearly perpendicular, the source appears very dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003040, 'preflight-2', '{"q1": "55 minutes.", "q2": "Not sure yet — didn''t finish the reading.", "q3": "The two polarizers are at an angle to each other. The first restricts light to one plane of vibration; the second then transmits only what aligns with its axis. The result is significantly reduced intensity."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003041, 'preflight-2', '{"q1": "Zero, I didn''t have time.", "q2": "Interesting: you can use polarization to measure the concentration of sugar in solution. Confusing: how does a quarter-wave plate convert linear to circular polarization?", "q3": "The polarizers have different orientations. After passing through the first, light is polarized. The second blocks all but the component aligned with its axis. Depending on the angle, most of the light is blocked, making the source look dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003042, 'preflight-2', '{"q1": "Around 30 minutes.", "q2": "I found the section on LCD screens really practical. The way they use polarization to control each pixel was cool. Confusing: the phase retardation explanation.", "q3": "The two polarizers are positioned at an angle to each other. The first creates polarized light, and the second transmits only the portion aligned with its transmission axis. This causes a large reduction in the intensity of the light reaching your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003043, 'preflight-2', '{"q1": "45 minutes.", "q2": "Most confusing: I''m not sure how Malus''s Law connects to the wave model of light. I can apply the formula but I don''t have a physical picture of why cos² appears.", "q3": "The polarizers are filtering the light. Each lets through only light vibrating in one direction. With two oriented differently, very little light makes it through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003044, 'preflight-2', '{"q1": "I read for about 25 minutes.", "q2": "Did not read thoroughly.", "q3": "Polarizers block most light that doesn''t match their polarization direction. Having two in series means even more is blocked before it reaches your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003045, 'preflight-2', '{"q1": "Close to an hour.", "q2": "Interesting: that the intensity after two crossed polarizers is exactly zero — not just small but zero. I found this counterintuitive at first.", "q3": "Each polarizer filters out some light. With two in a row, the total filtered is greater, so the source appears dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003046, 'preflight-2', '{"q1": "About 35 minutes.", "q2": ".", "q3": "The two polarizers each block part of the light. Combined, they let through only a small fraction of the original, making the source look dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003047, 'preflight-2', '{"q1": "1 hour.", "q2": "See above.", "q3": "The angle between the polarizers blocks most of the light from getting through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003048, 'preflight-2', '{"q1": "Didn''t get to it.", "q2": "Most interesting: the rainbow is partially polarized. Most confusing: the math for intensity in partially polarized light.", "q3": "The polarizers are oriented to reduce the intensity of the light when viewed together."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003049, 'preflight-2', '{"q1": "About 50 minutes.", "q2": "I found the examples about photography filters helpful. Most confusing was the concept of degree of polarization.", "q3": "Light bounces between the two polarizers and loses most of its energy before reaching your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003050, 'preflight-2', '{"q1": "1 hour 30 minutes.", "q2": "Interesting: Polaroid sunglasses reduce glare from horizontal surfaces specifically. I wasn''t sure why horizontal surfaces produce horizontally polarized light.", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003051, 'preflight-2', '{"q1": "About 45 minutes.", "q2": "Most interesting: Malus''s Law and how intensity depends on cos²θ. Confusing: why cos² and not just cos?", "q3": "The two polarizers are oriented at different angles — their transmission axes are not aligned. The first polarizer creates linearly polarized light. By Malus''s Law, when this light hits the second polarizer at angle θ, the transmitted intensity is I = I₀cos²θ. If θ is large (near 90°), almost no light passes through, making the source appear very dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003052, 'preflight-2', '{"q1": "30 minutes.", "q2": "I found Brewster''s angle interesting — at a specific angle, reflected light is completely polarized. What confused me was how polarization direction relates to the plane of incidence.", "q3": "The polarizers have different transmission axes. The first creates linearly polarized light; the second transmits only the fraction given by Malus''s Law: I = I₀cos²θ where θ is the angle between the axes. A large angle gives a small cos²θ and thus a dim source. At θ = 90° no light passes at all."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003053, 'preflight-2', '{"q1": "1 hour.", "q2": "Interesting: polarized sunglasses work by filtering out reflected glare, which is horizontally polarized. Confusing: I don''t fully understand why reflected light becomes polarized.", "q3": "The two linear polarizers are rotated relative to each other. After the first polarizer, the light is linearly polarized. The second polarizer only transmits the component along its own axis — intensity I₀cos²θ by Malus''s Law. With a large angle between them, the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003054, 'preflight-2', '{"q1": "25 minutes.", "q2": "Most confusing was Malus''s Law — I can follow the math but I''m not sure why intensity goes as cos² rather than cos.", "q3": "The dimness results from the angular misalignment of the two polarizers. Malus''s Law says transmitted intensity equals I₀cos²θ where θ is the angle between polarizer axes. If they are nearly crossed (θ near 90°), the intensity reaching your eye is very low."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003055, 'preflight-2', '{"q1": "About 40 minutes.", "q2": "Interesting: when two polarizers are perpendicular (crossed), no light gets through at all. Confusing: what does ''unpolarized light'' mean at the level of individual photons?", "q3": "The polarizers are set at an angle. The first restricts light to one plane; the second transmits only the cos²θ fraction (Malus''s Law). The combined effect is a large reduction in intensity, which is why the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003056, 'preflight-2', '{"q1": "I skimmed it, maybe 20 minutes.", "q2": "Birefringence was interesting but confusing — how can a material have two different indices of refraction?", "q3": "The two polarizers have their transmission axes at an angle to each other. The first creates linearly polarized light. The second only allows through the component aligned with its own axis. The larger the angle, the less light gets through — that''s why the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003057, 'preflight-2', '{"q1": "50 minutes.", "q2": "Interesting: the sky is polarized and you can see it with polaroid glasses. Confusing: the concept of the plane of polarization and how it relates to the wave.", "q3": "The polarizers are oriented at different angles. After the first, light is polarized in one direction. The second only passes the fraction aligned with its axis. If they don''t line up, only part of the light makes it through, reducing brightness significantly."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003058, 'preflight-2', '{"q1": "35 minutes.", "q2": "Found 3D movies interesting — they use polarization to send different images to each eye. What I didn''t fully understand was the difference between linear and circular polarization.", "q3": "The two polarizers are misaligned — their axes aren''t parallel. The first creates polarized light; the second transmits only the component matching its own axis. A large angle means almost no light is transmitted."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003059, 'preflight-2', '{"q1": "1 hour 15 minutes.", "q2": "Most confusing: the derivation of Malus''s Law. I understand the end result but not where cos² comes from physically.", "q3": "The polarizers are rotated relative to each other so their axes aren''t aligned. Light becomes polarized after the first filter. The second only passes the component that matches its axis. The bigger the angle, the less light passes through and the dimmer the source."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003060, 'preflight-2', '{"q1": "About 30 minutes.", "q2": "Interesting: light is a transverse wave and polarization is about which direction it oscillates. Confusing: can longitudinal waves be polarized?", "q3": "The dimness comes from the orientation of the two polarizers. After the first, light is linearly polarized. The second transmits only the fraction aligned with its transmission axis — if the two are nearly perpendicular, almost no light gets through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003061, 'preflight-2', '{"q1": "2 hours.", "q2": "Most interesting: reflected sunlight is polarized horizontally — that explains why polaroid sunglasses work. Confused about Brewster''s angle and how to calculate it.", "q3": "The first polarizer polarizes the light in one direction. The second is at some angle to the first, so it only transmits the portion aligned with its axis. With a large angle, much of the light is blocked."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003062, 'preflight-2', '{"q1": "15 minutes.", "q2": "Found polarization by scattering interesting — why does scattered light become polarized?", "q3": "The two polarizers are at an angle. The first creates linearly polarized light. The second only allows through the component aligned with its own axis. At large angles, very little passes through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003063, 'preflight-2', '{"q1": "About an hour.", "q2": "Confusing: the notation for e-ray and o-ray in birefringent materials. Interesting: some materials can rotate the plane of polarization (optical activity).", "q3": "The polarizers are crossed or nearly crossed. After the first, you have polarized light. The second only passes the fraction matching its transmission direction. With a large angle between them, only a tiny fraction reaches your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003064, 'preflight-2', '{"q1": "40 minutes.", "q2": "Most confusing: the relationship between the polarization axis and the electric field direction. I know light is an EM wave but I''m not sure which direction E points relative to the polarizer.", "q3": "The polarizers are oriented differently. The first polarizes the light; the second only lets through the component aligned with its axis. If the axes are nearly perpendicular, the source appears very dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003065, 'preflight-2', '{"q1": "55 minutes.", "q2": "Not sure yet — didn''t finish the reading.", "q3": "The two polarizers are at an angle to each other. The first restricts light to one plane of vibration; the second then transmits only what aligns with its axis. The result is significantly reduced intensity."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003066, 'preflight-2', '{"q1": "Zero, I didn''t have time.", "q2": "Interesting: you can use polarization to measure the concentration of sugar in solution. Confusing: how does a quarter-wave plate convert linear to circular polarization?", "q3": "The polarizers have different orientations. After passing through the first, light is polarized. The second blocks all but the component aligned with its axis. Depending on the angle, most of the light is blocked, making the source look dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003067, 'preflight-2', '{"q1": "Around 30 minutes.", "q2": "I found the section on LCD screens really practical. The way they use polarization to control each pixel was cool. Confusing: the phase retardation explanation.", "q3": "The two polarizers are positioned at an angle to each other. The first creates polarized light, and the second transmits only the portion aligned with its transmission axis. This causes a large reduction in the intensity of the light reaching your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003068, 'preflight-2', '{"q1": "45 minutes.", "q2": "Most confusing: I''m not sure how Malus''s Law connects to the wave model of light. I can apply the formula but I don''t have a physical picture of why cos² appears.", "q3": "The polarizers are filtering the light. Each lets through only light vibrating in one direction. With two oriented differently, very little light makes it through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003069, 'preflight-2', '{"q1": "I read for about 25 minutes.", "q2": "Did not read thoroughly.", "q3": "Polarizers block most light that doesn''t match their polarization direction. Having two in series means even more is blocked before it reaches your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003070, 'preflight-2', '{"q1": "Close to an hour.", "q2": "Interesting: that the intensity after two crossed polarizers is exactly zero — not just small but zero. I found this counterintuitive at first.", "q3": "Each polarizer filters out some light. With two in a row, the total filtered is greater, so the source appears dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003071, 'preflight-2', '{"q1": "About 35 minutes.", "q2": ".", "q3": "The two polarizers each block part of the light. Combined, they let through only a small fraction of the original, making the source look dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003072, 'preflight-2', '{"q1": "1 hour.", "q2": "See above.", "q3": "The angle between the polarizers blocks most of the light from getting through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003073, 'preflight-2', '{"q1": "Didn''t get to it.", "q2": "Most interesting: the rainbow is partially polarized. Most confusing: the math for intensity in partially polarized light.", "q3": "The polarizers are oriented to reduce the intensity of the light when viewed together."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003074, 'preflight-2', '{"q1": "About 50 minutes.", "q2": "I found the examples about photography filters helpful. Most confusing was the concept of degree of polarization.", "q3": "Light bounces between the two polarizers and loses most of its energy before reaching your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003075, 'preflight-2', '{"q1": "1 hour 30 minutes.", "q2": "Interesting: Polaroid sunglasses reduce glare from horizontal surfaces specifically. I wasn''t sure why horizontal surfaces produce horizontally polarized light.", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003076, 'preflight-2', '{"q1": "About 45 minutes.", "q2": "Most interesting: Malus''s Law and how intensity depends on cos²θ. Confusing: why cos² and not just cos?", "q3": "The two polarizers are oriented at different angles — their transmission axes are not aligned. The first polarizer creates linearly polarized light. By Malus''s Law, when this light hits the second polarizer at angle θ, the transmitted intensity is I = I₀cos²θ. If θ is large (near 90°), almost no light passes through, making the source appear very dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003077, 'preflight-2', '{"q1": "30 minutes.", "q2": "I found Brewster''s angle interesting — at a specific angle, reflected light is completely polarized. What confused me was how polarization direction relates to the plane of incidence.", "q3": "The polarizers have different transmission axes. The first creates linearly polarized light; the second transmits only the fraction given by Malus''s Law: I = I₀cos²θ where θ is the angle between the axes. A large angle gives a small cos²θ and thus a dim source. At θ = 90° no light passes at all."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003078, 'preflight-2', '{"q1": "1 hour.", "q2": "Interesting: polarized sunglasses work by filtering out reflected glare, which is horizontally polarized. Confusing: I don''t fully understand why reflected light becomes polarized.", "q3": "The two linear polarizers are rotated relative to each other. After the first polarizer, the light is linearly polarized. The second polarizer only transmits the component along its own axis — intensity I₀cos²θ by Malus''s Law. With a large angle between them, the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003079, 'preflight-2', '{"q1": "25 minutes.", "q2": "Most confusing was Malus''s Law — I can follow the math but I''m not sure why intensity goes as cos² rather than cos.", "q3": "The dimness results from the angular misalignment of the two polarizers. Malus''s Law says transmitted intensity equals I₀cos²θ where θ is the angle between polarizer axes. If they are nearly crossed (θ near 90°), the intensity reaching your eye is very low."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003080, 'preflight-2', '{"q1": "About 40 minutes.", "q2": "Interesting: when two polarizers are perpendicular (crossed), no light gets through at all. Confusing: what does ''unpolarized light'' mean at the level of individual photons?", "q3": "The polarizers are set at an angle. The first restricts light to one plane; the second transmits only the cos²θ fraction (Malus''s Law). The combined effect is a large reduction in intensity, which is why the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003081, 'preflight-2', '{"q1": "I skimmed it, maybe 20 minutes.", "q2": "Birefringence was interesting but confusing — how can a material have two different indices of refraction?", "q3": "The two polarizers have their transmission axes at an angle to each other. The first creates linearly polarized light. The second only allows through the component aligned with its own axis. The larger the angle, the less light gets through — that''s why the source looks dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003082, 'preflight-2', '{"q1": "50 minutes.", "q2": "Interesting: the sky is polarized and you can see it with polaroid glasses. Confusing: the concept of the plane of polarization and how it relates to the wave.", "q3": "The polarizers are oriented at different angles. After the first, light is polarized in one direction. The second only passes the fraction aligned with its axis. If they don''t line up, only part of the light makes it through, reducing brightness significantly."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003083, 'preflight-2', '{"q1": "35 minutes.", "q2": "Found 3D movies interesting — they use polarization to send different images to each eye. What I didn''t fully understand was the difference between linear and circular polarization.", "q3": "The two polarizers are misaligned — their axes aren''t parallel. The first creates polarized light; the second transmits only the component matching its own axis. A large angle means almost no light is transmitted."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003084, 'preflight-2', '{"q1": "1 hour 15 minutes.", "q2": "Most confusing: the derivation of Malus''s Law. I understand the end result but not where cos² comes from physically.", "q3": "The polarizers are rotated relative to each other so their axes aren''t aligned. Light becomes polarized after the first filter. The second only passes the component that matches its axis. The bigger the angle, the less light passes through and the dimmer the source."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003085, 'preflight-2', '{"q1": "About 30 minutes.", "q2": "Interesting: light is a transverse wave and polarization is about which direction it oscillates. Confusing: can longitudinal waves be polarized?", "q3": "The dimness comes from the orientation of the two polarizers. After the first, light is linearly polarized. The second transmits only the fraction aligned with its transmission axis — if the two are nearly perpendicular, almost no light gets through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003086, 'preflight-2', '{"q1": "2 hours.", "q2": "Most interesting: reflected sunlight is polarized horizontally — that explains why polaroid sunglasses work. Confused about Brewster''s angle and how to calculate it.", "q3": "The first polarizer polarizes the light in one direction. The second is at some angle to the first, so it only transmits the portion aligned with its axis. With a large angle, much of the light is blocked."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003087, 'preflight-2', '{"q1": "15 minutes.", "q2": "Found polarization by scattering interesting — why does scattered light become polarized?", "q3": "The two polarizers are at an angle. The first creates linearly polarized light. The second only allows through the component aligned with its own axis. At large angles, very little passes through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003088, 'preflight-2', '{"q1": "About an hour.", "q2": "Confusing: the notation for e-ray and o-ray in birefringent materials. Interesting: some materials can rotate the plane of polarization (optical activity).", "q3": "The polarizers are crossed or nearly crossed. After the first, you have polarized light. The second only passes the fraction matching its transmission direction. With a large angle between them, only a tiny fraction reaches your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003089, 'preflight-2', '{"q1": "40 minutes.", "q2": "Most confusing: the relationship between the polarization axis and the electric field direction. I know light is an EM wave but I''m not sure which direction E points relative to the polarizer.", "q3": "The polarizers are oriented differently. The first polarizes the light; the second only lets through the component aligned with its axis. If the axes are nearly perpendicular, the source appears very dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003090, 'preflight-2', '{"q1": "55 minutes.", "q2": "Not sure yet — didn''t finish the reading.", "q3": "The two polarizers are at an angle to each other. The first restricts light to one plane of vibration; the second then transmits only what aligns with its axis. The result is significantly reduced intensity."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003091, 'preflight-2', '{"q1": "Zero, I didn''t have time.", "q2": "Interesting: you can use polarization to measure the concentration of sugar in solution. Confusing: how does a quarter-wave plate convert linear to circular polarization?", "q3": "The polarizers have different orientations. After passing through the first, light is polarized. The second blocks all but the component aligned with its axis. Depending on the angle, most of the light is blocked, making the source look dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003092, 'preflight-2', '{"q1": "Around 30 minutes.", "q2": "I found the section on LCD screens really practical. The way they use polarization to control each pixel was cool. Confusing: the phase retardation explanation.", "q3": "The two polarizers are positioned at an angle to each other. The first creates polarized light, and the second transmits only the portion aligned with its transmission axis. This causes a large reduction in the intensity of the light reaching your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003093, 'preflight-2', '{"q1": "45 minutes.", "q2": "Most confusing: I''m not sure how Malus''s Law connects to the wave model of light. I can apply the formula but I don''t have a physical picture of why cos² appears.", "q3": "The polarizers are filtering the light. Each lets through only light vibrating in one direction. With two oriented differently, very little light makes it through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003094, 'preflight-2', '{"q1": "I read for about 25 minutes.", "q2": "Did not read thoroughly.", "q3": "Polarizers block most light that doesn''t match their polarization direction. Having two in series means even more is blocked before it reaches your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003095, 'preflight-2', '{"q1": "Close to an hour.", "q2": "Interesting: that the intensity after two crossed polarizers is exactly zero — not just small but zero. I found this counterintuitive at first.", "q3": "Each polarizer filters out some light. With two in a row, the total filtered is greater, so the source appears dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003096, 'preflight-2', '{"q1": "About 35 minutes.", "q2": ".", "q3": "The two polarizers each block part of the light. Combined, they let through only a small fraction of the original, making the source look dim."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003097, 'preflight-2', '{"q1": "1 hour.", "q2": "See above.", "q3": "The angle between the polarizers blocks most of the light from getting through."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003098, 'preflight-2', '{"q1": "Didn''t get to it.", "q2": "Most interesting: the rainbow is partially polarized. Most confusing: the math for intensity in partially polarized light.", "q3": "The polarizers are oriented to reduce the intensity of the light when viewed together."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003099, 'preflight-2', '{"q1": "About 50 minutes.", "q2": "I found the examples about photography filters helpful. Most confusing was the concept of degree of polarization.", "q3": "Light bounces between the two polarizers and loses most of its energy before reaching your eye."}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00'),
+  (3000003100, 'preflight-2', '{"q1": "1 hour 30 minutes.", "q2": "Interesting: Polaroid sunglasses reduce glare from horizontal surfaces specifically. I wasn''t sure why horizontal surfaces produce horizontally polarized light.", "q3": ""}', '2026-06-01 19:05:26.433680+00', '2026-06-01 19:05:26.433680+00');
