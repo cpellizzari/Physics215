@@ -1136,12 +1136,60 @@ async function saveAssignment(publish) {
     is_published:   publish
   };
 
+  const statusEl = document.getElementById('editor-status');
   const { error } = await db.from('assignments').upsert(row, { onConflict: 'id' });
-  const statusEl  = document.getElementById('editor-status');
   if (error) { statusEl.style.color = 'var(--red)'; statusEl.textContent = '⚠ ' + error.message; return; }
+
+  // Retroactively update existing scores if any question's points changed
+  let retroNote = '';
+  if (editingAssignment) {
+    const oldQs = editingAssignment.questions || [];
+    const pointsChanged = questionItems.some(q => {
+      const old = oldQs.find(oq => oq.id === q.id);
+      return old && Number(old.points) !== Number(q.points);
+    });
+    if (pointsChanged) {
+      const retroCount = await retroactivelyUpdateScores(slug, questionItems);
+      if (retroCount > 0) retroNote = ` · Updated ${retroCount} existing score record${retroCount !== 1 ? 's' : ''}.`;
+    }
+  }
+
   statusEl.style.color = 'var(--green)';
-  statusEl.textContent = publish ? '✓ Published!' : '✓ Saved as draft';
-  setTimeout(() => { cancelEditor(); loadAssignmentsList(); }, 1200);
+  statusEl.textContent = (publish ? '✓ Published!' : '✓ Saved as draft') + retroNote;
+  setTimeout(() => { cancelEditor(); loadAssignmentsList(); }, retroNote ? 2500 : 1200);
+}
+
+// When an assignment's question points change, propagate the new max to all existing scores.
+// Preserves status: zero stays 0, full/warn become the new point value.
+async function retroactivelyUpdateScores(assignmentId, allQuestions) {
+  const { data: scores, error } = await db
+    .from('scores')
+    .select('student_id, question_scores, is_finalized')
+    .eq('assignment_id', assignmentId);
+  if (error || !scores?.length) return 0;
+
+  const newMaxTotal = allQuestions.reduce((s, q) => s + (Number(q.points) || 0), 0);
+
+  const upserts = scores.map(row => {
+    const qs = { ...(row.question_scores || {}) };
+    allQuestions.forEach(q => {
+      if (!qs[q.id]) return;
+      const status = qs[q.id].status || (Number(qs[q.id].score) > 0 ? 'full' : 'zero');
+      qs[q.id] = { ...qs[q.id], max: q.points, score: status === 'zero' ? 0 : q.points };
+    });
+    const newTotal = allQuestions.reduce((s, q) => s + (Number(qs[q.id]?.score) || 0), 0);
+    return {
+      student_id:      row.student_id,
+      assignment_id:   assignmentId,
+      question_scores: qs,
+      total_score:     Math.round(newTotal * 1000) / 1000,
+      max_total:       newMaxTotal,
+      is_finalized:    row.is_finalized
+    };
+  });
+
+  const { error: upsertErr } = await db.from('scores').upsert(upserts, { onConflict: 'student_id,assignment_id' });
+  return upsertErr ? 0 : scores.length;
 }
 
 async function togglePublish(id, current) {
