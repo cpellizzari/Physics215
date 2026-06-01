@@ -122,23 +122,43 @@
 .section-id { font-weight: 700; font-size: 1em; color: var(--blue); margin-bottom: 4px; }
 
 /* ── Report tab ── */
-.response-entry {
-  border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 8px;
+.summary-paragraph {
+  font-size: 0.92em; line-height: 1.7; color: var(--text);
+  padding: 12px 0 4px;
 }
-.response-entry-header {
-  background: #f1f5f9; padding: 6px 12px;
-  font-size: 0.78em; font-weight: 600; color: var(--muted);
+.summary-placeholder {
+  font-size: 0.88em; color: var(--muted); font-style: italic; padding: 8px 0;
 }
-.response-entry-body {
-  padding: 10px 12px; font-size: 0.88em; line-height: 1.6; white-space: pre-wrap;
+
+/* Toggle switch */
+.toggle-label { display:inline-flex; align-items:center; cursor:pointer; user-select:none; gap:8px; }
+.toggle-label input[type="checkbox"] { display:none; }
+.toggle-track {
+  width:34px; height:18px; background:var(--border); border-radius:999px;
+  position:relative; transition:background 0.2s; flex-shrink:0;
 }
-.misconception-item {
-  background: #fffbeb; border-left: 3px solid var(--gold);
-  border-radius: 0 6px 6px 0; padding: 8px 12px; margin-bottom: 6px;
-  font-size: 0.85em;
+.toggle-track::after {
+  content:''; position:absolute; width:14px; height:14px; border-radius:50%;
+  background:#fff; top:2px; left:2px; transition:left 0.2s;
+  box-shadow:0 1px 3px rgba(0,0,0,0.25);
 }
-.misconception-item .mc-text { color: #78350f; }
-.misconception-item .mc-students { color: var(--muted); font-size: 0.82em; margin-top: 3px; }
+.toggle-label input:checked + .toggle-track { background:var(--blue); }
+.toggle-label input:checked + .toggle-track::after { left:18px; }
+
+/* Response bullets */
+.responses-block {
+  background:#f8fafc; border:1px solid var(--border);
+  border-radius:6px; padding:10px 16px; margin-top:8px;
+}
+.response-bullet {
+  display:flex; align-items:flex-start; gap:8px;
+  padding:7px 0; font-size:0.88em; line-height:1.6;
+  border-bottom:1px solid #edf0f4;
+}
+.response-bullet:last-child { border-bottom:none; }
+.bullet-dot { flex-shrink:0; color:var(--blue); font-weight:800; padding-top:1px; }
+.bullet-text { flex:1; white-space:pre-wrap; }
+.attrib-name { color:var(--muted); font-size:0.8em; white-space:nowrap; padding-top:3px; flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -392,6 +412,8 @@ let editingAssignment = null;
 let questionItems = [];
 let gradeData = {};
 let gradeAssignment = null;
+let reportAnswers   = {};   // { qIdx: [{name, section, answer}] }
+let reportQuestions = [];   // question objects for the currently loaded report
 
 // ── Auth ──
 document.getElementById('login-password').addEventListener('keydown', e => {
@@ -737,19 +759,29 @@ async function loadReport() {
 
   const [{ data: responses }, { data: scores }] = await Promise.all([
     db.from('responses').select('student_id, answers').eq('assignment_id', asgnId).in('student_id', studentIds),
-    db.from('scores').select('student_id, question_scores, is_finalized').eq('assignment_id', asgnId).in('student_id', studentIds)
+    db.from('scores').select('student_id, question_scores').eq('assignment_id', asgnId).in('student_id', studentIds)
   ]);
 
   const responseMap = {};
   (responses || []).forEach(r => responseMap[r.student_id] = r.answers || {});
-  const scoreMap = {};
-  (scores || []).forEach(s => scoreMap[s.student_id] = s);
 
   const submittedIds = new Set((responses || []).map(r => r.student_id));
-  const missing  = (students || []).filter(s => !submittedIds.has(s.student_id));
+  const missing   = (students || []).filter(s => !submittedIds.has(s.student_id));
   const submitted = (students || []).filter(s => submittedIds.has(s.student_id));
-  const qs = asgn.questions || [];
+  const qs        = asgn.questions || [];
 
+  // Store for copy/toggle functions
+  reportQuestions = qs;
+  reportAnswers   = {};
+  qs.forEach((q, idx) => {
+    reportAnswers[idx] = submitted.map(s => ({
+      name:    s.name,
+      section: s.section_id,
+      answer:  String(responseMap[s.student_id]?.[q.id] ?? '')
+    }));
+  });
+
+  const analysisReport = asgn.analysis_report || null;
   let html = '';
 
   // ── Submission summary ──
@@ -777,105 +809,110 @@ async function loadReport() {
     html += `
       <div class="card" style="border-left:4px solid var(--red); margin-bottom:20px">
         <div class="card-title" style="color:var(--red); margin-bottom:12px">Did Not Submit (${missing.length})</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Name</th><th>Section</th><th>Student ID</th></tr></thead>
-            <tbody>${missing.map(s => `<tr><td>${esc(s.name)}</td><td>${esc(s.section_id)}</td><td>${s.student_id}</td></tr>`).join('')}</tbody>
-          </table>
-        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Section</th><th>Student ID</th></tr></thead>
+          <tbody>${missing.map(s => `<tr><td>${esc(s.name)}</td><td>${esc(s.section_id)}</td><td>${s.student_id}</td></tr>`).join('')}</tbody>
+        </table></div>
       </div>`;
   } else {
     html += `<div class="alert alert-success" style="margin-bottom:20px">✓ All students submitted this assignment.</div>`;
   }
 
-  // ── Per-question sections ──
+  // ── Per-question cards ──
   qs.forEach((q, idx) => {
-    const qAnswers = submitted.map(s => ({
-      name:     s.name,
-      section:  s.section_id,
-      answer:   String(responseMap[s.student_id]?.[q.id] ?? ''),
-      feedback: scoreMap[s.student_id]?.question_scores?.[q.id]?.feedback || ''
-    }));
-
+    const qAnswers   = reportAnswers[idx];
     const blankCount = qAnswers.filter(a => !a.answer.trim()).length;
+    const summary    = analysisReport?.questions?.[q.id]?.summary || null;
 
-    // Aggregate feedback strings → misconceptions
-    const feedbackGroups = {};
-    qAnswers.forEach(a => {
-      if (a.feedback.trim()) {
-        const key = a.feedback.trim();
-        if (!feedbackGroups[key]) feedbackGroups[key] = [];
-        feedbackGroups[key].push(a.name);
-      }
-    });
-
-    // Build copy text
-    const copyText = `Q${idx+1}: ${q.text}\n${'─'.repeat(60)}\n\n` +
-      qAnswers.map(a => `${a.name} (${a.section}):\n${a.answer.trim() || '[No answer submitted]'}`).join('\n\n');
-
-    const btnId = `copybtn-${idx}`;
     html += `
       <div class="card" style="margin-bottom:20px">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px">
-          <div>
-            <div class="card-title">Q${idx+1}: ${esc(q.text)}</div>
-            <div class="card-meta">${q.points} pt${q.points !== 1 ? 's' : ''} · ${qAnswers.length - blankCount} answered · ${blankCount} blank</div>
-          </div>
-          <button class="btn btn-secondary btn-sm" id="${btnId}"
-            onclick="copyToClipboard(${JSON.stringify(copyText)}, '${btnId}')">Copy All Responses</button>
-        </div>`;
+        <div class="card-title">Q${idx+1}: ${esc(q.text)}</div>
+        <div class="card-meta">${q.points} pt${q.points !== 1 ? 's' : ''} · ${qAnswers.length - blankCount} answered · ${blankCount} blank</div>
 
-    // Misconceptions / feedback themes
-    if (Object.keys(feedbackGroups).length) {
-      html += `
-        <div style="margin-bottom:16px">
-          <div style="font-size:0.78em; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); margin-bottom:8px">
-            Common Feedback &amp; Misconceptions
-          </div>
-          ${Object.entries(feedbackGroups).map(([fb, names]) => `
-            <div class="misconception-item">
-              <div class="mc-text">${esc(fb)}</div>
-              <div class="mc-students">— ${names.map(n => esc(n)).join(', ')}</div>
-            </div>`).join('')}
-        </div>`;
-    }
+        <!-- Class summary paragraph -->
+        <div style="margin:14px 0 0">
+          <div style="font-size:0.75em; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--blue); margin-bottom:6px">Class Summary &amp; Misconceptions</div>
+          ${summary
+            ? `<div class="summary-paragraph">${esc(summary)}</div>`
+            : `<div class="summary-placeholder">No summary yet — run <code>/physics215-analyze ${asgnId}</code> to generate a class-level analysis.</div>`}
+        </div>
 
-    // Raw responses
-    html += `<div>
-      <div style="font-size:0.78em; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); margin-bottom:8px">Raw Responses</div>
-      ${qAnswers.map(a => `
-        <div class="response-entry">
-          <div class="response-entry-header">${esc(a.name)} · ${esc(a.section)}</div>
-          <div class="response-entry-body ${!a.answer.trim() ? 'empty' : ''}"
-               style="${!a.answer.trim() ? 'color:var(--muted);font-style:italic' : ''}">
-            ${a.answer.trim() ? esc(a.answer) : 'No answer submitted.'}
+        <!-- Raw responses -->
+        <div style="margin-top:20px">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px">
+            <div style="font-size:0.75em; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--blue)">Raw Responses</div>
+            <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap">
+              <label class="toggle-label">
+                <input type="checkbox" id="attrib-${idx}" checked onchange="toggleAttribution(${idx})">
+                <span class="toggle-track"></span>
+                <span style="font-size:0.82em; color:var(--muted)">Show names</span>
+              </label>
+              <button class="btn btn-secondary btn-sm" id="copybtn-${idx}" onclick="copyQuestion(${idx})">Copy All</button>
+            </div>
           </div>
-        </div>`).join('')}
-    </div>`;
-
-    html += '</div>'; // close card
+          <div class="responses-block" id="responses-${idx}">
+            ${qAnswers.map(a => `
+              <div class="response-bullet">
+                <span class="bullet-dot">•</span>
+                <span class="bullet-text">${a.answer.trim() ? esc(a.answer) : '<em style="color:var(--muted)">No answer submitted.</em>'}</span>
+                <span class="attrib-name">&nbsp;(${esc(a.name)} · ${esc(a.section)})</span>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>`;
   });
 
   container.innerHTML = html;
 }
 
-function copyToClipboard(text, btnId) {
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById(btnId);
-    if (btn) {
-      const orig = btn.textContent;
-      btn.textContent = '✓ Copied!';
-      btn.style.color = 'var(--green)';
-      setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
-    }
-  }).catch(() => {
-    // Fallback for older browsers
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta);
+function toggleAttribution(idx) {
+  const show = document.getElementById(`attrib-${idx}`)?.checked;
+  const container = document.getElementById(`responses-${idx}`);
+  if (!container) return;
+  container.querySelectorAll('.attrib-name').forEach(el => {
+    el.style.display = show ? '' : 'none';
   });
+}
+
+function copyQuestion(idx) {
+  const showAttrib = document.getElementById(`attrib-${idx}`)?.checked;
+  const q          = reportQuestions[idx];
+  const answers    = reportAnswers[idx] || [];
+
+  const header  = `Q${idx+1}: ${q?.text || ''}\n${'─'.repeat(60)}\n`;
+  const bullets = answers.map(a => {
+    const text   = a.answer.trim() || '[No answer submitted]';
+    const attrib = showAttrib ? ` (${a.name} · ${a.section})` : '';
+    return `• ${text}${attrib}`;
+  }).join('\n');
+
+  const fullText = header + '\n' + bullets;
+
+  // Modern clipboard API with execCommand fallback
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(fullText).then(() => flashCopyBtn(idx)).catch(() => fallbackCopy(fullText, idx));
+  } else {
+    fallbackCopy(fullText, idx);
+  }
+}
+
+function fallbackCopy(text, idx) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); flashCopyBtn(idx); } catch(e) { alert('Copy failed — please copy manually.'); }
+  document.body.removeChild(ta);
+}
+
+function flashCopyBtn(idx) {
+  const btn = document.getElementById(`copybtn-${idx}`);
+  if (!btn) return;
+  const orig = btn.textContent;
+  btn.textContent = '✓ Copied!';
+  btn.style.color = 'var(--green)';
+  setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
 }
 
 // ══════════════════════════════════════════════════════
