@@ -511,6 +511,9 @@ async function initGradeTab() {
   });
   const sectSel = document.getElementById('grade-section-select');
   sectSel.innerHTML = '<option value="">— all my sections —</option>';
+  if (instructor.is_director) {
+    sectSel.innerHTML += '<option value="__all__">All sections (entire course)</option>';
+  }
   mySections.forEach(s => {
     const opt = document.createElement('option');
     opt.value = s; opt.textContent = s;
@@ -536,9 +539,12 @@ async function loadGradingView() {
   if (!asgn) { container.innerHTML = '<div class="alert alert-error">Assignment not found.</div>'; return; }
 
   let studentQuery = db.from('students').select('student_id, name, section_id').order('section_id').order('name');
-  if (sectionFilter) {
+  if (sectionFilter === '__all__') {
+    // director: show entire course — no filter
+  } else if (sectionFilter) {
     studentQuery = studentQuery.eq('section_id', sectionFilter);
-  } else if (!instructor.is_director) {
+  } else {
+    // default: my sections only (applies to everyone, including director)
     studentQuery = studentQuery.in('section_id', mySections.length ? mySections : ['__none__']);
   }
   const { data: students } = await studentQuery;
@@ -725,6 +731,9 @@ async function initReportTab() {
 
   const sectSel = document.getElementById('report-section-select');
   sectSel.innerHTML = '<option value="">— all my sections —</option>';
+  if (instructor.is_director) {
+    sectSel.innerHTML += '<option value="__all__">All sections (entire course)</option>';
+  }
   mySections.forEach(s => {
     const opt = document.createElement('option');
     opt.value = s; opt.textContent = s;
@@ -749,9 +758,12 @@ async function loadReport() {
   if (!asgn) { container.innerHTML = '<div class="alert alert-error">Assignment not found.</div>'; return; }
 
   let studentQuery = db.from('students').select('student_id, name, section_id').order('section_id').order('name');
-  if (sectionFilter) {
+  if (sectionFilter === '__all__') {
+    // director: show entire course — no filter
+  } else if (sectionFilter) {
     studentQuery = studentQuery.eq('section_id', sectionFilter);
-  } else if (!instructor.is_director) {
+  } else {
+    // default: my sections only (applies to everyone, including director)
     studentQuery = studentQuery.in('section_id', mySections.length ? mySections : ['__none__']);
   }
   const { data: students } = await studentQuery;
