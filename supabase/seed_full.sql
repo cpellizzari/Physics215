@@ -4,10 +4,10 @@
 -- Before running:
 --   1. Create Tyler Jones's account in Supabase Auth → Users → Add User
 --      Email: tyler.jones@afacademy.af.edu  Password: (anything)
---   2. Copy his UUID and replace TYLER_UUID below.
+--   2. Copy his UUID and replace 52b48755-01a5-479e-9bfa-eeeedce12742 below.
 --   3. Tyler Jones (3000000002) was a test student — this script removes him.
 --
--- Replace: TYLER_UUID  →  UUID from Supabase Auth for Tyler Jones
+-- Replace: 52b48755-01a5-479e-9bfa-eeeedce12742  →  UUID from Supabase Auth for Tyler Jones
 -- Casey's UUID is already in the DB: 6ad3ad7e-0a5b-4512-b9be-24673cbb0160
 
 -- ============================================================
@@ -21,7 +21,7 @@ DELETE FROM students  WHERE student_id IN (3000000001, 3000000002);
 -- 1. Register Tyler Jones as instructor
 -- ============================================================
 INSERT INTO instructors (id, name, is_director)
-VALUES ('TYLER_UUID', 'Tyler Jones', FALSE)
+VALUES ('52b48755-01a5-479e-9bfa-eeeedce12742', 'Tyler Jones', FALSE)
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 
 -- ============================================================
@@ -30,8 +30,8 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 INSERT INTO sections (id, instructor_id) VALUES
   ('M1A', '6ad3ad7e-0a5b-4512-b9be-24673cbb0160'),
   ('M1B', '6ad3ad7e-0a5b-4512-b9be-24673cbb0160'),
-  ('T3A', 'TYLER_UUID'),
-  ('T3B', 'TYLER_UUID')
+  ('T3A', '52b48755-01a5-479e-9bfa-eeeedce12742'),
+  ('T3B', '52b48755-01a5-479e-9bfa-eeeedce12742')
 ON CONFLICT (id) DO UPDATE SET instructor_id = EXCLUDED.instructor_id;
 
 -- ============================================================

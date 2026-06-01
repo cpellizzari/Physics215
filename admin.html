@@ -126,6 +126,11 @@
   font-size: 0.92em; line-height: 1.7; color: var(--text);
   padding: 12px 0 4px;
 }
+.summary-bullets {
+  margin: 8px 0 4px 18px; padding: 0;
+  font-size: 0.92em; line-height: 1.65; color: var(--text);
+}
+.summary-bullets li { margin-bottom: 4px; }
 .summary-placeholder {
   font-size: 0.88em; color: var(--muted); font-style: italic; padding: 8px 0;
 }
@@ -834,18 +839,18 @@ async function loadReport() {
   qs.forEach((q, idx) => {
     const qAnswers   = reportAnswers[idx];
     const blankCount = qAnswers.filter(a => !a.answer.trim()).length;
-    const summary    = analysisReport?.questions?.[q.id]?.summary || null;
+    const summary    = analysisReport?.by_instructor?.[instructor?.id]?.questions?.[q.id]?.summary || null;
 
     html += `
       <div class="card" style="margin-bottom:20px">
         <div class="card-title">Q${idx+1}: ${esc(q.text)}</div>
         <div class="card-meta">${q.points} pt${q.points !== 1 ? 's' : ''} · ${qAnswers.length - blankCount} answered · ${blankCount} blank</div>
 
-        <!-- Class summary paragraph -->
+        <!-- Class summary bullet list -->
         <div style="margin:14px 0 0">
           <div style="font-size:0.75em; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--blue); margin-bottom:6px">Class Summary &amp; Misconceptions</div>
           ${summary
-            ? `<div class="summary-paragraph">${esc(summary)}</div>`
+            ? `<ul class="summary-bullets">${summary.split('\n').filter(l=>l.trim()).map(l=>`<li>${esc(l.replace(/^[•\-]\s*/,''))}</li>`).join('')}</ul>`
             : `<div class="summary-placeholder">No summary yet — run <code>/physics215-analyze ${asgnId}</code> to generate a class-level analysis.</div>`}
         </div>
 
