@@ -1111,8 +1111,8 @@ function renderQuestionBuilder() {
       <div class="field"><label>Question Text</label>
         <textarea rows="2" oninput="questionItems[${idx}].text=this.value">${esc(q.text)}</textarea></div>
       <div class="field" style="max-width:140px"><label>Points</label>
-        <input type="number" min="0.1" step="0.1" value="${q.points}"
-          oninput="questionItems[${idx}].points=parseFloat(this.value)||1"></div>
+        <input type="number" min="0" step="0.1" value="${q.points}"
+          oninput="{ const v=parseFloat(this.value); questionItems[${idx}].points=isNaN(v)?1:v; }"></div>
       ${extra}`;
     container.appendChild(div);
   });
