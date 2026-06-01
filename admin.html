@@ -545,7 +545,7 @@ async function loadGradingView() {
   gradeAssignment = asgn;
   if (!asgn) { container.innerHTML = '<div class="alert alert-error">Assignment not found.</div>'; return; }
 
-  let studentQuery = db.from('students').select('student_id, name, section_id').order('section_id').order('name');
+  let studentQuery = db.from('students').select('student_id, name, section_id').order('name');
   if (sectionFilter === '__all__') {
     // director: show entire course — no filter
   } else if (sectionFilter) {
@@ -794,7 +794,7 @@ async function loadReport() {
   const { data: asgn } = await db.from('assignments').select('*').eq('id', asgnId).single();
   if (!asgn) { container.innerHTML = '<div class="alert alert-error">Assignment not found.</div>'; return; }
 
-  let studentQuery = db.from('students').select('student_id, name, section_id').order('section_id').order('name');
+  let studentQuery = db.from('students').select('student_id, name, section_id').order('name');
   if (sectionFilter === '__all__') {
     // director: show entire course — no filter
   } else if (sectionFilter) {
