@@ -429,8 +429,10 @@ let editingAssignment = null;
 let questionItems = [];
 let gradeData = {};
 let gradeAssignment = null;
-let reportAnswers   = {};   // { qIdx: [{name, section, answer}] }
-let reportQuestions = [];   // question objects for the currently loaded report
+let reportAnswers        = {};   // { qIdx: [{name, section, answer}] }
+let reportQuestions      = [];   // question objects for the currently loaded report
+let reportSampleMode     = {};   // { qIdx: bool } — true = show random 10
+let reportCurrentSample  = {};   // { qIdx: [{name, section, answer}] } — what's currently displayed
 
 // ── Auth ──
 document.getElementById('login-password').addEventListener('keydown', e => {
@@ -906,22 +908,65 @@ async function loadReport() {
                 <span class="toggle-track"></span>
                 <span style="font-size:0.82em; color:var(--muted)">Show names</span>
               </label>
-              <button class="btn btn-secondary btn-sm" id="copybtn-${idx}" onclick="copyQuestion(${idx})">Copy All</button>
+              ${qAnswers.length > 10
+                ? `<button class="btn btn-secondary btn-sm" id="samplebtn-${idx}" onclick="toggleSample(${idx})">🎲 Random 10</button>`
+                : ''}
+              <button class="btn btn-secondary btn-sm" id="copybtn-${idx}" onclick="copyQuestion(${idx})">Copy</button>
             </div>
           </div>
-          <div class="responses-block" id="responses-${idx}">
-            ${qAnswers.map(a => `
-              <div class="response-bullet">
-                <span class="bullet-dot">•</span>
-                <span class="bullet-text">${a.answer.trim() ? esc(a.answer) : '<em style="color:var(--muted)">No answer submitted.</em>'}</span>
-                <span class="attrib-name" style="display:none">&nbsp;(${esc(a.name)} · ${esc(a.section)})</span>
-              </div>`).join('')}
-          </div>
+          <div class="responses-block" id="responses-${idx}"></div>
         </div>
       </div>`;
   });
 
   container.innerHTML = html;
+  // Render responses blocks after HTML is in the DOM
+  reportSampleMode    = {};
+  reportCurrentSample = {};
+  qs.forEach((q, idx) => renderResponsesBlock(idx));
+}
+
+function renderResponsesBlock(idx) {
+  const block      = document.getElementById(`responses-${idx}`);
+  if (!block) return;
+  const allAnswers = reportAnswers[idx] || [];
+  const inSample   = reportSampleMode[idx];
+  const showAttrib = document.getElementById(`attrib-${idx}`)?.checked;
+
+  let displayed;
+  if (inSample && allAnswers.length > 10) {
+    const shuffled = [...allAnswers].sort(() => Math.random() - 0.5);
+    displayed = shuffled.slice(0, 10);
+  } else {
+    displayed = allAnswers;
+  }
+  reportCurrentSample[idx] = displayed;
+
+  block.innerHTML = displayed.map(a => `
+    <div class="response-bullet">
+      <span class="bullet-dot">•</span>
+      <span class="bullet-text">${a.answer.trim() ? esc(a.answer) : '<em style="color:var(--muted)">No answer submitted.</em>'}</span>
+      <span class="attrib-name" style="display:${showAttrib ? '' : 'none'}">&nbsp;(${esc(a.name)} · ${esc(a.section)})</span>
+    </div>`).join('');
+
+  // Update sample button label
+  const btn = document.getElementById(`samplebtn-${idx}`);
+  if (btn) {
+    if (inSample) {
+      btn.textContent  = `Show All (${allAnswers.length})`;
+      btn.style.color  = 'var(--blue)';
+      btn.style.fontWeight = '700';
+    } else {
+      btn.textContent  = '🎲 Random 10';
+      btn.style.color  = '';
+      btn.style.fontWeight = '';
+    }
+  }
+}
+
+function toggleSample(idx) {
+  reportSampleMode[idx] = !reportSampleMode[idx];
+  renderResponsesBlock(idx);
 }
 
 function toggleAttribution(idx) {
@@ -936,7 +981,8 @@ function toggleAttribution(idx) {
 function copyQuestion(idx) {
   const showAttrib = document.getElementById(`attrib-${idx}`)?.checked;
   const q          = reportQuestions[idx];
-  const answers    = reportAnswers[idx] || [];
+  // Copy whatever is currently displayed (respects random sample mode)
+  const answers    = reportCurrentSample[idx] || reportAnswers[idx] || [];
 
   const header  = `Q${idx+1}: ${q?.text || ''}\n${'─'.repeat(60)}\n`;
   const bullets = answers.map(a => {
