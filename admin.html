@@ -1158,6 +1158,7 @@ async function saveAssignment(publish) {
   const row = {
     id: slug, title,
     description:    document.getElementById('asgn-desc-in').value.trim() || null,
+    due_date:       new Date(dueM || dueT).toISOString(), // keep NOT NULL column satisfied
     due_date_m:     dueM ? new Date(dueM).toISOString() : null,
     due_date_t:     dueT ? new Date(dueT).toISOString() : null,
     reading_link:   document.getElementById('asgn-link-in').value.trim() || null,
