@@ -281,14 +281,24 @@
           </div>
           <div style="display:flex; gap:16px; flex-wrap:wrap">
             <div class="field" style="flex:1; min-width:180px">
-              <label>Due Date &amp; Time</label>
-              <input type="datetime-local" id="asgn-due-in">
+              <label>M-Day Due Date &amp; Time</label>
+              <input type="datetime-local" id="asgn-due-m-in">
             </div>
             <div class="field" style="flex:1; min-width:180px">
-              <label>Reference PDF (filename only)</label>
+              <label>T-Day Due Date &amp; Time</label>
+              <input type="datetime-local" id="asgn-due-t-in">
+            </div>
+          </div>
+          <div style="display:flex; gap:16px; flex-wrap:wrap">
+            <div class="field" style="flex:2; min-width:260px">
+              <label>Reading Link <span style="font-weight:400; color:var(--muted)">(optional — students see this at the top of the assignment)</span></label>
+              <input type="url" id="asgn-link-in" placeholder="https://openstax.org/books/...">
+            </div>
+            <div class="field" style="flex:1; min-width:180px">
+              <label>Reference PDF <span style="font-weight:400; color:var(--muted)">(for Claude analysis)</span></label>
               <input type="text" id="asgn-pdf-in" placeholder="university-physics-volume-1_-_WEB.pdf">
             </div>
-            <div class="field" style="flex:1; min-width:140px">
+            <div class="field" style="flex:0 0 140px">
               <label>Pages</label>
               <input type="text" id="asgn-pages-in" placeholder="45-52, 60">
             </div>
@@ -508,7 +518,7 @@ function switchTab(id) {
 async function initGradeTab() {
   const sel = document.getElementById('grade-asgn-select');
   const current = sel.value;
-  const { data: asgns } = await db.from('assignments').select('id, title').order('due_date', { ascending: false });
+  const { data: asgns } = await db.from('assignments').select('id, title').order('due_date_m', { ascending: false, nullsFirst: false });
   sel.innerHTML = '<option value="">— select assignment —</option>';
   (asgns || []).forEach(a => {
     const opt = document.createElement('option');
@@ -757,7 +767,7 @@ async function reopenStudent(studentId, name) {
 async function initReportTab() {
   const sel     = document.getElementById('report-asgn-select');
   const current = sel.value;
-  const { data: asgns } = await db.from('assignments').select('id, title').order('due_date', { ascending: false });
+  const { data: asgns } = await db.from('assignments').select('id, title').order('due_date_m', { ascending: false, nullsFirst: false });
   sel.innerHTML = '<option value="">— select assignment —</option>';
   (asgns || []).forEach(a => {
     const opt = document.createElement('option');
@@ -883,7 +893,7 @@ async function loadReport() {
           <div style="font-size:0.75em; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--blue); margin-bottom:6px">Class Summary &amp; Misconceptions</div>
           ${summary
             ? `<ul class="summary-bullets">${summary.split('\n').filter(l=>l.trim()).map(l=>`<li>${esc(l.replace(/^[•\-]\s*/,''))}</li>`).join('')}</ul>`
-            : `<div class="summary-placeholder">No summary yet — run <code>/physics215-analyze ${asgnId}</code> to generate a class-level analysis.</div>`}
+            : `<div class="summary-placeholder">No summary yet — run <code>/preflight-analyze ${asgnId}</code> to generate a class-level analysis.</div>`}
         </div>
 
         <!-- Raw responses -->
@@ -972,24 +982,29 @@ async function loadAssignmentsList() {
   listEl.innerHTML = '<div style="color:var(--muted);font-size:0.9em">Loading…</div>';
   document.getElementById('asgn-editor').style.display = 'none';
 
-  const { data: asgns } = await db.from('assignments').select('*').order('due_date');
+  const { data: asgns } = await db.from('assignments').select('*').order('due_date_m', { ascending: true, nullsFirst: false });
   if (!asgns?.length) {
     listEl.innerHTML = '<div style="color:var(--muted)">No assignments yet. Click "+ New Assignment" to create one.</div>';
     return;
   }
   listEl.innerHTML = '';
   asgns.forEach(a => {
-    const due  = new Date(a.due_date);
+    const dueMStr = a.due_date_m ? new Date(a.due_date_m).toLocaleDateString() : '—';
+    const dueTStr = a.due_date_t ? new Date(a.due_date_t).toLocaleDateString() : '—';
+    const dueMeta = (a.due_date_m || a.due_date_t)
+      ? `M: ${dueMStr} · T: ${dueTStr}`
+      : 'No due date set';
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div>
           <div class="card-title">${esc(a.title)}</div>
-          <div class="card-meta">${a.questions?.length ?? 0} questions · Due ${due.toLocaleDateString()} ·
+          <div class="card-meta">${a.questions?.length ?? 0} questions · Due ${dueMeta} ·
             ${a.is_published
               ? '<span style="color:var(--green)">Published</span>'
               : '<span style="color:var(--muted)">Draft</span>'}
+            ${a.reading_link ? ' · <span style="color:var(--blue)">📖 Reading link</span>' : ''}
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
@@ -1008,7 +1023,9 @@ function showNewAssignment() {
   document.getElementById('editor-title-label').textContent = 'New Assignment';
   document.getElementById('asgn-title-in').value   = '';
   document.getElementById('asgn-desc-in').value    = '';
-  document.getElementById('asgn-due-in').value     = '';
+  document.getElementById('asgn-due-m-in').value   = '';
+  document.getElementById('asgn-due-t-in').value   = '';
+  document.getElementById('asgn-link-in').value    = '';
   document.getElementById('asgn-pdf-in').value     = '';
   document.getElementById('asgn-pages-in').value   = '';
   document.getElementById('question-builder').innerHTML = '';
@@ -1020,23 +1037,28 @@ async function editAssignment(id) {
   const { data: a } = await db.from('assignments').select('*').eq('id', id).single();
   if (!a) return;
   editingAssignment = a;
-  _fillEditor(a, 'Edit: ' + a.title, a.due_date);
+  _fillEditor(a, 'Edit: ' + a.title);
 }
 
 async function duplicateAssignment(id) {
   const { data: a } = await db.from('assignments').select('*').eq('id', id).single();
   if (!a) return;
   editingAssignment = null; // new assignment, not editing existing
-  _fillEditor(a, 'New Assignment (copy of ' + a.title + ')', null);
+  _fillEditor(a, 'New Assignment (copy of ' + a.title + ')');
   document.getElementById('asgn-title-in').value = 'Copy of ' + a.title;
+  // Clear both due dates on duplicate so instructor sets new ones
+  document.getElementById('asgn-due-m-in').value = '';
+  document.getElementById('asgn-due-t-in').value = '';
 }
 
-function _fillEditor(a, label, dueDate) {
+function _fillEditor(a, label) {
   questionItems = JSON.parse(JSON.stringify(a.questions || []));
   document.getElementById('editor-title-label').textContent = label;
   document.getElementById('asgn-title-in').value  = a.title;
   document.getElementById('asgn-desc-in').value   = a.description || '';
-  document.getElementById('asgn-due-in').value    = dueDate ? new Date(dueDate).toISOString().slice(0,16) : '';
+  document.getElementById('asgn-due-m-in').value  = a.due_date_m ? new Date(a.due_date_m).toISOString().slice(0,16) : '';
+  document.getElementById('asgn-due-t-in').value  = a.due_date_t ? new Date(a.due_date_t).toISOString().slice(0,16) : '';
+  document.getElementById('asgn-link-in').value   = a.reading_link || '';
   document.getElementById('asgn-pdf-in').value    = a.reference_pdf || '';
   document.getElementById('asgn-pages-in').value  = a.reference_pages || '';
   document.getElementById('asgn-list-admin').style.display = 'none';
@@ -1125,8 +1147,10 @@ function setQuestionPoints(idx, value) {
 
 async function saveAssignment(publish) {
   const title = document.getElementById('asgn-title-in').value.trim();
-  const due   = document.getElementById('asgn-due-in').value;
-  if (!title || !due) { alert('Title and due date are required.'); return; }
+  const dueM  = document.getElementById('asgn-due-m-in').value;
+  const dueT  = document.getElementById('asgn-due-t-in').value;
+  if (!title) { alert('Title is required.'); return; }
+  if (!dueM && !dueT) { alert('At least one due date (M-Day or T-Day) is required.'); return; }
 
   const slug = editingAssignment?.id ||
     title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -1134,7 +1158,9 @@ async function saveAssignment(publish) {
   const row = {
     id: slug, title,
     description:    document.getElementById('asgn-desc-in').value.trim() || null,
-    due_date:       new Date(due).toISOString(),
+    due_date_m:     dueM ? new Date(dueM).toISOString() : null,
+    due_date_t:     dueT ? new Date(dueT).toISOString() : null,
+    reading_link:   document.getElementById('asgn-link-in').value.trim() || null,
     questions:      questionItems,
     reference_pdf:  document.getElementById('asgn-pdf-in').value.trim() || null,
     reference_pages: document.getElementById('asgn-pages-in').value.trim() || null,

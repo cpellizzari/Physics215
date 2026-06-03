@@ -192,9 +192,9 @@ async function loadAssignments() {
   // All published assignments
   const { data: asgns, error } = await db
     .from('assignments')
-    .select('id, title, description, due_date, questions')
+    .select('id, title, description, due_date_m, due_date_t, reading_link, questions')
     .eq('is_published', true)
-    .order('due_date', { ascending: true });
+    .order('due_date_m', { ascending: true, nullsFirst: false });
 
   if (error || !asgns?.length) {
     listEl.innerHTML = '';
@@ -221,8 +221,11 @@ async function loadAssignments() {
   document.getElementById('no-assignments').style.display = 'none';
 
   asgns.forEach(a => {
-    const due        = new Date(a.due_date);
-    const isPast     = due < new Date();
+    // Pick due date based on student's section (M-day or T-day)
+    const isMDay  = student.section_id.startsWith('M');
+    const dueRaw  = isMDay ? (a.due_date_m || a.due_date_t) : (a.due_date_t || a.due_date_m);
+    const due     = dueRaw ? new Date(dueRaw) : null;
+    const isPast  = due ? due < new Date() : false;
     const submitted  = submittedMap[a.id];
     const score      = scoreMap[a.id];
     const qCount     = a.questions?.length ?? 0;
@@ -235,9 +238,9 @@ async function loadAssignments() {
     card.onmouseleave = () => card.style.boxShadow = '';
     card.onclick = () => openAssignment(a);
 
-    const deadlineClass = isPast ? 'overdue' : (due - new Date() < 86400000 ? 'soon' : '');
-    const deadlineText  = isPast
-      ? `Closed ${due.toLocaleDateString()}`
+    const deadlineClass = !due ? '' : isPast ? 'overdue' : (due - new Date() < 86400000 ? 'soon' : '');
+    const deadlineText  = !due ? 'No due date'
+      : isPast ? `Closed ${due.toLocaleDateString()}`
       : `Due ${due.toLocaleDateString()} ${due.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
 
     // Right-side status
@@ -291,11 +294,25 @@ async function openAssignment(a) {
   answers = {};
 
   document.getElementById('asgn-title').textContent = a.title;
-  const due    = new Date(a.due_date);
-  const isPast = due < new Date();
-  document.getElementById('asgn-meta').textContent =
-    `Due: ${due.toLocaleDateString()} ${due.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
-  document.getElementById('asgn-desc').textContent = a.description || '';
+  const isMDay = student.section_id.startsWith('M');
+  const dueRaw = isMDay ? (a.due_date_m || a.due_date_t) : (a.due_date_t || a.due_date_m);
+  const due    = dueRaw ? new Date(dueRaw) : null;
+  const isPast = due ? due < new Date() : false;
+  document.getElementById('asgn-meta').textContent = due
+    ? `Due: ${due.toLocaleDateString()} ${due.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`
+    : '';
+
+  // Show description + optional reading link
+  const descEl = document.getElementById('asgn-desc');
+  let descHtml = a.description ? `<span>${esc(a.description)}</span>` : '';
+  if (a.reading_link) {
+    descHtml += (descHtml ? '<br>' : '') +
+      `<a href="${esc(a.reading_link)}" target="_blank" rel="noopener"
+          style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:0.88em;color:var(--blue);font-weight:600;text-decoration:none">
+         📖 Read before completing this assignment ↗
+       </a>`;
+  }
+  descEl.innerHTML = descHtml;
 
   // Fetch response + finalized score in parallel
   const [{ data: existing }, { data: scoreRow }] = await Promise.all([
