@@ -6,6 +6,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function ok(body: object) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -14,27 +21,21 @@ serve(async (req) => {
   try {
     const { name, email, password, course_id, role } = await req.json();
 
-    if (!name || !email || !password || !course_id) {
-      return new Response(
-        JSON.stringify({ error: "name, email, password, and course_id are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!name || !email || !password) {
+      return ok({ error: "name, email, and password are required" });
+    }
+    if (role !== "system_admin" && !course_id) {
+      return ok({ error: "course_id is required for instructor and director roles" });
     }
 
-    // Admin client — uses service role key stored as Supabase secret
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify the caller is authenticated and is a director for this course
+    // Verify caller is authenticated
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Not authenticated" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (!authHeader) return ok({ error: "Not authenticated" });
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -42,90 +43,73 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user: caller } } = await supabaseClient.auth.getUser();
-    if (!caller) {
-      return new Response(
-        JSON.stringify({ error: "Not authenticated" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const { data: { user: caller }, error: authErr } = await supabaseClient.auth.getUser();
+    if (authErr || !caller) return ok({ error: "Not authenticated: " + (authErr?.message ?? "no user") });
 
-    // Check caller is a global admin or director for this course
-    const { data: callerInstructor } = await supabaseAdmin
+    // Verify caller is authorized
+    const { data: callerInstructor, error: instrErr } = await supabaseAdmin
       .from("instructors")
-      .select("is_global_admin")
+      .select("is_global_admin, is_director")
       .eq("id", caller.id)
       .single();
+
+    if (instrErr) return ok({ error: "Could not verify caller: " + instrErr.message });
 
     const { data: callerAccess } = await supabaseAdmin
       .from("instructor_course_access")
       .select("role")
       .eq("instructor_id", caller.id)
-      .eq("course_id", course_id)
+      .eq("course_id", course_id ?? "")
       .single();
 
-    const isAuthorized =
-      callerInstructor?.is_global_admin === true ||
-      callerAccess?.role === "director";
+    const isGlobalAdmin = callerInstructor?.is_global_admin === true || callerInstructor?.is_director === true;
+    const isCourseDirector = callerAccess?.role === "director";
 
-    if (!isAuthorized) {
-      return new Response(
-        JSON.stringify({ error: "Only course directors can add instructors" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // System admin can only be created by another system admin
+    if (role === "system_admin" && !isGlobalAdmin) {
+      return ok({ error: "Only system admins can create other system admins" });
+    }
+    if (role !== "system_admin" && !isGlobalAdmin && !isCourseDirector) {
+      return ok({ error: "Only course directors or system admins can add instructors" });
     }
 
-    // Create the Supabase Auth user (email confirmed immediately — no verification email)
+    // Create Supabase Auth user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
     });
 
-    if (createError) {
-      return new Response(
-        JSON.stringify({ error: createError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (createError) return ok({ error: "Auth create failed: " + createError.message });
 
     const userId = newUser.user.id;
 
     // Insert into instructors table
-    const { error: instrError } = await supabaseAdmin
+    const { error: instrInsertError } = await supabaseAdmin
       .from("instructors")
-      .insert({ id: userId, name, is_global_admin: false });
+      .insert({ id: userId, name, is_global_admin: role === "system_admin" });
 
-    if (instrError) {
+    if (instrInsertError) {
       await supabaseAdmin.auth.admin.deleteUser(userId);
-      return new Response(
-        JSON.stringify({ error: instrError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return ok({ error: "Instructors insert failed: " + instrInsertError.message });
     }
 
-    // Insert course access
-    const { error: accessError } = await supabaseAdmin
-      .from("instructor_course_access")
-      .insert({ instructor_id: userId, course_id, role: role || "instructor" });
+    // For director/instructor: add course access row
+    if (role !== "system_admin") {
+      const { error: accessError } = await supabaseAdmin
+        .from("instructor_course_access")
+        .insert({ instructor_id: userId, course_id, role: role || "instructor" });
 
-    if (accessError) {
-      await supabaseAdmin.from("instructors").delete().eq("id", userId);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      return new Response(
-        JSON.stringify({ error: accessError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (accessError) {
+        await supabaseAdmin.from("instructors").delete().eq("id", userId);
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+        return ok({ error: "Course access insert failed: " + accessError.message });
+      }
     }
 
-    return new Response(
-      JSON.stringify({ success: true, user_id: userId }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return ok({ success: true, user_id: userId });
+
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return ok({ error: "Unexpected error: " + err.message });
   }
 });

@@ -450,12 +450,14 @@
           </div>
           <div>
             <label style="font-size:0.82em;font-weight:600;display:block;margin-bottom:4px">Role</label>
-            <select id="new-instr-role" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:0.9em;box-sizing:border-box">
-              <option value="instructor">Instructor (grades own sections)</option>
-              <option value="director">Director (full course access)</option>
+            <select id="new-instr-role" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:0.9em;box-sizing:border-box" onchange="onRoleChange()">
+              <option value="instructor">Instructor — grades own sections</option>
+              <option value="director">Course Director — full access to selected course</option>
+              <option value="system_admin">System Admin — all courses (Physics 110 + 215)</option>
             </select>
           </div>
         </div>
+        <div id="new-instr-course-note" style="font-size:0.8em;color:var(--muted);margin-top:-6px;margin-bottom:4px"></div>
         <div id="add-instr-error" style="color:#f87171;font-size:0.82em;margin-bottom:8px;min-height:1em"></div>
         <div style="display:flex;gap:10px;align-items:center">
           <button class="btn btn-primary" onclick="addInstructor()">+ Add Instructor</button>
@@ -1672,23 +1674,56 @@ function triggerDownload(content, filename, mimeType) {
 // ══════════════════════════════════════════════════════
 // INSTRUCTORS TAB
 // ══════════════════════════════════════════════════════
+function onRoleChange() {
+  const role = document.getElementById('new-instr-role').value;
+  const courseRow = document.getElementById('new-instr-course-note');
+  if (courseRow) {
+    courseRow.textContent = role === 'system_admin'
+      ? 'System admins have access to all courses — no course selection needed.'
+      : role === 'director'
+        ? `Will be added as Course Director for ${myCourseAccess.find(a => a.course_id === currentCourse)?.course_title || currentCourse}.`
+        : `Will be added as Instructor for ${myCourseAccess.find(a => a.course_id === currentCourse)?.course_title || currentCourse}. Assign their sections in the Sections tab after adding.`;
+  }
+}
+
 async function loadInstructorsTab() {
   document.getElementById('instr-course-label').textContent =
     myCourseAccess.find(a => a.course_id === currentCourse)?.course_title || currentCourse;
 
+  onRoleChange(); // update hint text
+
   const listEl = document.getElementById('instructors-list');
   listEl.innerHTML = '<div style="color:var(--muted);font-size:0.9em">Loading…</div>';
 
-  // Fetch all instructor_course_access rows for this course, joined with instructor names
-  const { data, error } = await db
-    .from('instructor_course_access')
-    .select('instructor_id, role, instructors(name)')
-    .eq('course_id', currentCourse);
+  // Fetch course instructors + system admins in parallel
+  const [{ data: courseRows }, { data: sysAdmins }] = await Promise.all([
+    db.from('instructor_course_access')
+      .select('instructor_id, role, instructors(name)')
+      .eq('course_id', currentCourse),
+    db.from('instructors')
+      .select('id, name')
+      .eq('is_global_admin', true),
+  ]);
 
-  if (error || !data?.length) {
+  // Build rows: system admins first (deduped), then course instructors
+  const sysAdminIds = new Set((sysAdmins || []).map(a => a.id));
+  const rows = [
+    ...(sysAdmins || []).map(a => ({ instructor_id: a.id, name: a.name, role: 'system_admin' })),
+    ...(courseRows || [])
+      .filter(r => !sysAdminIds.has(r.instructor_id))  // don't double-list
+      .map(r => ({ instructor_id: r.instructor_id, name: r.instructors?.name || '(unknown)', role: r.role })),
+  ];
+
+  if (!rows.length) {
     listEl.innerHTML = '<div style="color:var(--muted);font-size:0.9em">No instructors found.</div>';
     return;
   }
+
+  const roleStyle = {
+    system_admin: { bg: 'rgba(168,85,247,0.15)', color: '#d8b4fe', label: 'System Admin' },
+    director:     { bg: 'rgba(59,130,246,0.15)',  color: 'var(--blue)', label: 'Course Director' },
+    instructor:   { bg: 'rgba(100,100,100,0.15)', color: 'var(--muted)', label: 'Instructor' },
+  };
 
   listEl.innerHTML = `
     <table style="width:100%;border-collapse:collapse;font-size:0.9em">
@@ -1700,19 +1735,17 @@ async function loadInstructorsTab() {
         </tr>
       </thead>
       <tbody>
-        ${data.map(row => {
-          const name = row.instructors?.name || '(unknown)';
+        ${rows.map(row => {
           const isSelf = row.instructor_id === currentUser.id;
+          const rs = roleStyle[row.role] || roleStyle.instructor;
           return `<tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:10px 4px;font-weight:600">${esc(name)}${isSelf ? ' <span style="font-size:0.75em;color:var(--muted)">(you)</span>' : ''}</td>
+            <td style="padding:10px 4px;font-weight:600">${esc(row.name)}${isSelf ? ' <span style="font-size:0.75em;color:var(--muted)">(you)</span>' : ''}</td>
             <td style="padding:10px 4px">
-              <span style="font-size:0.8em;padding:2px 8px;border-radius:4px;background:${row.role === 'director' ? 'rgba(59,130,246,0.15)' : 'rgba(100,100,100,0.15)'};color:${row.role === 'director' ? 'var(--blue)' : 'var(--muted)'}">
-                ${row.role}
-              </span>
+              <span style="font-size:0.8em;padding:2px 8px;border-radius:4px;background:${rs.bg};color:${rs.color}">${rs.label}</span>
             </td>
             <td style="padding:10px 4px;text-align:right">
               ${isSelf ? '' : `<button class="btn btn-secondary btn-sm" style="font-size:0.78em;color:#f87171;border-color:rgba(248,113,113,0.4)"
-                onclick="removeInstructor('${row.instructor_id}','${esc(name)}')">Remove</button>`}
+                onclick="removeInstructor('${row.instructor_id}','${esc(row.name)}','${row.role}')">Remove</button>`}
             </td>
           </tr>`;
         }).join('')}
@@ -1752,16 +1785,17 @@ async function addInstructor() {
   loadInstructorsTab();
 }
 
-async function removeInstructor(instructorId, name) {
-  if (!confirm(`Remove ${name} from ${currentCourse}?\n\nThey will lose access to this course. Their account is not deleted — contact Supabase dashboard to fully delete it.`)) return;
+async function removeInstructor(instructorId, name, role) {
+  const scopeNote = role === 'system_admin'
+    ? 'They will lose system admin access across all courses.'
+    : `They will lose access to ${myCourseAccess.find(a => a.course_id === currentCourse)?.course_title || currentCourse}.`;
+  if (!confirm(`Remove ${name}?\n\n${scopeNote}\n\nTheir login account is not deleted.`)) return;
 
-  const { error } = await db
-    .from('instructor_course_access')
-    .delete()
-    .eq('instructor_id', instructorId)
-    .eq('course_id', currentCourse);
+  const { data, error } = await db.functions.invoke('remove-instructor', {
+    body: { instructor_id: instructorId, course_id: role === 'system_admin' ? null : currentCourse }
+  });
 
-  if (error) { alert(`Failed to remove: ${error.message}`); return; }
+  if (error || data?.error) { alert(`Failed to remove: ${data?.error || error.message}`); return; }
   loadInstructorsTab();
 }
 
