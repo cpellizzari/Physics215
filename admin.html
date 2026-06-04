@@ -832,7 +832,7 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
                  <textarea class="feedback-input" placeholder="Feedback for student (optional)…"
                    oninput="updateFeedback(${st.student_id},'${q.id}',this)">${esc(gd.feedback)}</textarea>`
             }
-            ${status === 'warn' && !finalized ? `<div style="font-size:0.75em;color:#854d0e;padding:2px 0 0;flex-basis:100%">Click to confirm correct (green) or deduct credit (red)</div>` : ''}
+            ${status === 'warn' && !finalized ? `<div class="warn-hint" style="font-size:0.75em;color:#854d0e;padding:2px 0 0;flex-basis:100%">Yellow = full credit flagged for review. Click for red (no credit) or click twice for green (confirmed).</div>` : ''}
           </div>
         </div>`;
     });
@@ -844,8 +844,8 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
 
 function toggleCredit(studentId, qId, maxPoints) {
   const gd = gradeData[studentId][qId];
-  // 3-state cycle: warn → full → zero → full → zero ...
-  const next = { warn: 'full', full: 'zero', zero: 'full' };
+  // 3-state cycle: full → warn → zero → full → ...
+  const next = { full: 'warn', warn: 'zero', zero: 'full' };
   gd.status   = next[gd.status] || 'full';
   gd.score    = gd.status === 'zero' ? 0 : maxPoints;
   gd.modified = true;
