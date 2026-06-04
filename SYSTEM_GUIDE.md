@@ -91,16 +91,19 @@ The page will preview the data and report any invalid student IDs or unknown sec
 
 ---
 
-## Removing a Student
+## Editing or Removing a Student
 
-There is no UI for removing individual students. Use the [Supabase SQL editor](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/sql):
+Both actions are available directly in the **Roster** tab — no SQL required.
 
-```sql
--- Removes the student and all their responses/scores
-DELETE FROM scores WHERE student_id = 3000123456;
-DELETE FROM responses WHERE student_id = 3000123456;
-DELETE FROM students WHERE student_id = 3000123456;
-```
+**To change a student's section:**
+1. Go to the **Roster** tab
+2. Find the student and click **Edit Section**
+3. Select the new section from the dropdown and click **Save**
+
+**To remove a student:**
+1. Go to the **Roster** tab
+2. Find the student and click **Remove**
+3. Confirm the prompt — this permanently deletes their record, all submissions, and all scores
 
 ---
 
@@ -263,18 +266,33 @@ supabase functions deploy remove-instructor
 
 That's it — the functions run on Supabase's servers from that point on. No one else needs the CLI.
 
-### Run the Instructor RLS Migration
+### Run the RLS Migrations
 
-Run this once in the [Supabase SQL editor](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/sql) to allow the Instructors tab to read all instructor names:
+Run each of these once in the [Supabase SQL editor](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/sql). The files also live in `supabase/migrations/` in the repo.
+
+**Instructors read policy** — allows the Instructors tab to list all instructor names:
 
 ```sql
--- File: supabase/migrations/instructors_read_policy.sql
+-- supabase/migrations/instructors_read_policy.sql
 ALTER TABLE instructors ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "instructors_read_all" ON instructors;
 CREATE POLICY "instructors_read_all" ON instructors
   FOR SELECT TO authenticated USING (true);
 CREATE POLICY "instructors_update_own" ON instructors
   FOR UPDATE TO authenticated USING (id = auth.uid());
+```
+
+**Student write policy** — allows directors to edit sections and remove students from the Roster tab:
+
+```sql
+-- supabase/migrations/students_director_write_policy.sql
+CREATE POLICY "directors_update_students" ON students
+  FOR UPDATE TO authenticated
+  USING (true) WITH CHECK (true);
+
+CREATE POLICY "directors_delete_students" ON students
+  FOR DELETE TO authenticated
+  USING (true);
 ```
 
 ---
