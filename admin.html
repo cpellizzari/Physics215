@@ -426,6 +426,52 @@
       </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════
+         INSTRUCTORS TAB (director only)
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="tab-instructors">
+      <h3 style="margin-bottom:16px">Instructors</h3>
+
+      <!-- Add instructor form -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">Add Instructor</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
+          <div>
+            <label style="font-size:0.82em;font-weight:600;display:block;margin-bottom:4px">Full Name</label>
+            <input id="new-instr-name" type="text" placeholder="First Last" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:0.9em;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:0.82em;font-weight:600;display:block;margin-bottom:4px">USAFA Email</label>
+            <input id="new-instr-email" type="email" placeholder="first.last@afacademy.af.edu" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:0.9em;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:0.82em;font-weight:600;display:block;margin-bottom:4px">Temporary Password</label>
+            <input id="new-instr-password" type="text" placeholder="They can change this after login" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:0.9em;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:0.82em;font-weight:600;display:block;margin-bottom:4px">Role</label>
+            <select id="new-instr-role" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:0.9em;box-sizing:border-box">
+              <option value="instructor">Instructor (grades own sections)</option>
+              <option value="director">Director (full course access)</option>
+            </select>
+          </div>
+        </div>
+        <div id="add-instr-error" style="color:#f87171;font-size:0.82em;margin-bottom:8px;min-height:1em"></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn btn-primary" onclick="addInstructor()">+ Add Instructor</button>
+          <span id="add-instr-status" style="font-size:0.82em;color:var(--muted)"></span>
+        </div>
+      </div>
+
+      <!-- Current instructors list -->
+      <div class="card">
+        <div class="card-title">Current Instructors — <span id="instr-course-label"></span></div>
+        <div id="instructors-list" style="margin-top:12px">
+          <div style="color:var(--muted);font-size:0.9em">Loading…</div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /page-wide -->
 </div><!-- /screen-admin -->
 
@@ -593,10 +639,11 @@ function buildTabs() {
   const tabs = [
     { id: 'grade',       label: 'Grade',       always: true },
     { id: 'report',      label: 'Report',      always: true },
-    { id: 'assignments', label: 'Assignments', directorOnly: true },
-    { id: 'roster',      label: 'Roster',      directorOnly: true },
-    { id: 'sections',    label: 'Sections',    directorOnly: true },
-    { id: 'export',      label: 'Export',      always: true },
+    { id: 'assignments',  label: 'Assignments',  directorOnly: true },
+    { id: 'roster',       label: 'Roster',       directorOnly: true },
+    { id: 'sections',     label: 'Sections',     directorOnly: true },
+    { id: 'instructors',  label: 'Instructors',  directorOnly: true },
+    { id: 'export',       label: 'Export',       always: true },
   ];
   tabs.forEach(t => {
     if (t.directorOnly && !isDirectorForCurrent()) return;
@@ -613,12 +660,13 @@ function buildTabs() {
 function switchTab(id) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + id));
-  if (id === 'grade')       initGradeTab();
-  if (id === 'report')      initReportTab();
-  if (id === 'assignments') loadAssignmentsList();
-  if (id === 'roster')      loadRosterTable();
-  if (id === 'sections')    loadSections();
-  if (id === 'export')      initExportTab();
+  if (id === 'grade')        initGradeTab();
+  if (id === 'report')       initReportTab();
+  if (id === 'assignments')  loadAssignmentsList();
+  if (id === 'roster')       loadRosterTable();
+  if (id === 'sections')     loadSections();
+  if (id === 'instructors')  loadInstructorsTab();
+  if (id === 'export')       initExportTab();
 }
 
 // ══════════════════════════════════════════════════════
@@ -1619,6 +1667,102 @@ function triggerDownload(content, filename, mimeType) {
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════════════════════════
+// INSTRUCTORS TAB
+// ══════════════════════════════════════════════════════
+async function loadInstructorsTab() {
+  document.getElementById('instr-course-label').textContent =
+    myCourseAccess.find(a => a.course_id === currentCourse)?.course_title || currentCourse;
+
+  const listEl = document.getElementById('instructors-list');
+  listEl.innerHTML = '<div style="color:var(--muted);font-size:0.9em">Loading…</div>';
+
+  // Fetch all instructor_course_access rows for this course, joined with instructor names
+  const { data, error } = await db
+    .from('instructor_course_access')
+    .select('instructor_id, role, instructors(name)')
+    .eq('course_id', currentCourse);
+
+  if (error || !data?.length) {
+    listEl.innerHTML = '<div style="color:var(--muted);font-size:0.9em">No instructors found.</div>';
+    return;
+  }
+
+  listEl.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:0.9em">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:left;padding:8px 4px">Name</th>
+          <th style="text-align:left;padding:8px 4px">Role</th>
+          <th style="padding:8px 4px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(row => {
+          const name = row.instructors?.name || '(unknown)';
+          const isSelf = row.instructor_id === currentUser.id;
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:10px 4px;font-weight:600">${esc(name)}${isSelf ? ' <span style="font-size:0.75em;color:var(--muted)">(you)</span>' : ''}</td>
+            <td style="padding:10px 4px">
+              <span style="font-size:0.8em;padding:2px 8px;border-radius:4px;background:${row.role === 'director' ? 'rgba(59,130,246,0.15)' : 'rgba(100,100,100,0.15)'};color:${row.role === 'director' ? 'var(--blue)' : 'var(--muted)'}">
+                ${row.role}
+              </span>
+            </td>
+            <td style="padding:10px 4px;text-align:right">
+              ${isSelf ? '' : `<button class="btn btn-secondary btn-sm" style="font-size:0.78em;color:#f87171;border-color:rgba(248,113,113,0.4)"
+                onclick="removeInstructor('${row.instructor_id}','${esc(name)}')">Remove</button>`}
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function addInstructor() {
+  const name     = document.getElementById('new-instr-name').value.trim();
+  const email    = document.getElementById('new-instr-email').value.trim();
+  const password = document.getElementById('new-instr-password').value.trim();
+  const role     = document.getElementById('new-instr-role').value;
+  const errEl    = document.getElementById('add-instr-error');
+  const statusEl = document.getElementById('add-instr-status');
+
+  errEl.textContent = '';
+  if (!name || !email || !password) {
+    errEl.textContent = 'Name, email, and password are all required.';
+    return;
+  }
+
+  statusEl.textContent = 'Creating account…';
+  const { data, error } = await db.functions.invoke('create-instructor', {
+    body: { name, email, password, course_id: currentCourse, role }
+  });
+
+  if (error || data?.error) {
+    errEl.textContent = data?.error || error.message;
+    statusEl.textContent = '';
+    return;
+  }
+
+  statusEl.textContent = `✓ ${name} added successfully.`;
+  document.getElementById('new-instr-name').value = '';
+  document.getElementById('new-instr-email').value = '';
+  document.getElementById('new-instr-password').value = '';
+  loadInstructorsTab();
+}
+
+async function removeInstructor(instructorId, name) {
+  if (!confirm(`Remove ${name} from ${currentCourse}?\n\nThey will lose access to this course. Their account is not deleted — contact Supabase dashboard to fully delete it.`)) return;
+
+  const { error } = await db
+    .from('instructor_course_access')
+    .delete()
+    .eq('instructor_id', instructorId)
+    .eq('course_id', currentCourse);
+
+  if (error) { alert(`Failed to remove: ${error.message}`); return; }
+  loadInstructorsTab();
 }
 
 // ── Utility ──

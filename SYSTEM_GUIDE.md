@@ -1,4 +1,4 @@
-# Core Preflights — Instructor Guide
+# Core Preflights — System Guide
 
 **Live site**: https://dfpm-physics.github.io/Core_Preflights/
 **Admin panel**: https://dfpm-physics.github.io/Core_Preflights/admin.html
@@ -11,49 +11,34 @@
 
 | Role | Can do |
 |---|---|
-| **Course Director** | Everything — create assignments, upload rosters, manage sections, run Claude analysis, export grades |
-| **Instructor** | Grade their own sections, view submission reports, export their sections |
+| **Course Director** | Everything — create assignments, upload rosters, manage sections and instructors, run Claude analysis, export grades |
+| **Instructor** | Grade their own sections, view submission reports, export their sections, grant student extensions |
 
-The course director account is `casey.pellizzari@afacademy.af.edu`. Director-only tabs (Assignments, Roster, Sections) are hidden from regular instructor accounts.
+The course director account is `casey.pellizzari@afacademy.af.edu`. Director-only tabs (Assignments, Roster, Sections, Instructors) are hidden from regular instructor accounts.
 
 ---
 
 ## Adding an Instructor
 
-Instructors need two things: a login account and section assignments.
-
-**Step 1 — Create their login (Supabase dashboard)**
-
-1. Go to the [Supabase Auth dashboard](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/auth/users)
-2. Click **Add user → Create new user**
-3. Enter their USAFA email and a temporary password (e.g., their last name + `215`)
-4. Open the **SQL Editor** and run:
-
-```sql
--- Replace values with actual name, email, and course
-INSERT INTO instructors (id, name, is_global_admin)
-SELECT id, 'First Last', false
-FROM auth.users WHERE email = 'instructor@afacademy.af.edu';
-
-INSERT INTO instructor_course_access (instructor_id, course_id, role)
-SELECT id, 'phys-215', 'instructor'
-FROM auth.users WHERE email = 'instructor@afacademy.af.edu';
-```
-
-5. Send them the URL and temporary password. They can change their password after first login.
-
-**Step 2 — Assign their sections**
+Everything is done from the admin panel — no SQL required.
 
 1. Log into the admin panel as course director
-2. Go to the **Sections** tab
-3. Use the dropdown next to each section ID to assign the instructor
+2. Go to the **Instructors** tab
+3. Fill in the instructor's name, USAFA email, and a temporary password
+4. Select their role (**Instructor** or **Director**) and click **Add Instructor**
+5. Send them the admin panel URL and their temporary password — they can change it after first login
+6. Go to the **Sections** tab and assign them to their sections
+
+> **Note:** The temporary password can be anything — the instructor changes it themselves after logging in for the first time.
 
 ---
 
 ## Removing an Instructor
 
 1. In the **Sections** tab, reassign their sections to another instructor
-2. In the [Supabase Auth dashboard](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/auth/users), find the user and click **Delete user**
+2. Go to the **Instructors** tab and click **Remove** next to their name
+
+This removes their course access. Their login account is deactivated but not fully deleted — if you need to permanently delete it, go to the [Supabase Auth dashboard](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/auth/users) and delete the user there.
 
 ---
 
@@ -83,7 +68,7 @@ The page will preview the data and report any invalid student IDs or unknown sec
 
 ## Removing a Student
 
-There is no UI for removing individual students. Use the Supabase SQL editor:
+There is no UI for removing individual students. Use the [Supabase SQL editor](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/sql):
 
 ```sql
 -- Removes the student and all their responses/scores
@@ -91,6 +76,18 @@ DELETE FROM scores WHERE student_id = 3000123456;
 DELETE FROM responses WHERE student_id = 3000123456;
 DELETE FROM students WHERE student_id = 3000123456;
 ```
+
+---
+
+## Granting a Student Extension
+
+Any instructor can grant an extension from the Grade tab.
+
+1. Go to the **Grade** tab and select the assignment
+2. Find the student's card and click **📅 Grant Extension**
+3. Pick the new due date and time, then click **Save Extension**
+
+The student's assignment page will automatically use the extended date. The extension badge shows on their card so instructors can see it at a glance. Extensions can be edited or removed at any time before the student submits.
 
 ---
 
@@ -165,7 +162,9 @@ Suggested scores appear highlighted in the admin **Grade** tab. Instructors revi
 
 Use the same assignments with updated due dates. The process clears all student data and submissions while keeping assignments intact.
 
-**Step 1 — Clear last semester's data (Supabase SQL editor)**
+**Step 1 — Clear last semester's data**
+
+Run the following in the [Supabase SQL editor](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/sql):
 
 ```sql
 -- Clear in this order to respect foreign key constraints
@@ -182,11 +181,15 @@ Follow the Roster Upload steps above with the new semester's CSV.
 
 Go to the **Sections** tab in the admin panel and update the instructor assignment for each section. Section IDs (e.g., `M1A`, `T3B`) stay the same across semesters — just change who is assigned to each one.
 
-**Step 4 — Update assignment due dates**
+**Step 4 — Add or remove instructors as needed**
+
+Use the **Instructors** tab to add new instructors or remove those no longer teaching the course.
+
+**Step 5 — Update assignment due dates**
 
 Go to the **Assignments** tab and update the M-day and T-day due dates for each assignment. Assignments stay published — students will see them as soon as the due dates are current.
 
-**Step 5 — Verify**
+**Step 6 — Verify**
 
 Open the student page at https://dfpm-physics.github.io/Core_Preflights/ and enter a test student ID to confirm the assignment list looks correct.
 
@@ -201,6 +204,38 @@ Open the student page at https://dfpm-physics.github.io/Core_Preflights/ and ent
 The file (`CorePreflights_Grades_YYYY-MM-DD.csv`) contains one row per student and one column per finalized assignment. Import it directly into Blackboard.
 
 Only finalized assignments are included as columns. Unfinalized assignments are omitted.
+
+---
+
+## One-Time System Setup (Course Director Only)
+
+This section documents what was done to deploy the system — only needed if starting from scratch or re-deploying.
+
+### Deploy the `create-instructor` Edge Function
+
+The edge function handles instructor account creation securely. It only needs to be deployed once (or after any code change to it).
+
+**1. Install the Supabase CLI**
+
+```bash
+brew install supabase/tap/supabase   # Mac
+```
+Or download from https://supabase.com/docs/guides/cli
+
+**2. Log in and link the project**
+
+```bash
+supabase login
+supabase link --project-ref shzvpmlnqfmzfmuxkowi
+```
+
+**3. Deploy the function**
+
+```bash
+supabase functions deploy create-instructor
+```
+
+That's it — the function runs on Supabase's servers from that point on. No one else needs the CLI.
 
 ---
 
