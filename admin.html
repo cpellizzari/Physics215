@@ -477,19 +477,45 @@ async function initAdmin() {
   }
   instructor = data;
 
-  // Fetch course access
+  // Fetch course access — with fallback to sections table if courses/ica tables
+  // aren't readable yet (RLS not fully configured)
+  const COURSE_TITLES = { 'phys-215': 'Physics 215', 'phys-110': 'Physics 110' };
+
   if (instructor.is_global_admin) {
-    const { data: courses } = await db.from('courses').select('id, title').order('id');
-    myCourseAccess = (courses || []).map(c => ({ course_id: c.id, role: 'director', course_title: c.title }));
+    // Try courses table first; fall back to distinct course_ids from sections
+    let { data: courses } = await db.from('courses').select('id, title').order('id');
+    if (!courses?.length) {
+      const { data: sects } = await db.from('sections').select('course_id').order('course_id');
+      const ids = [...new Set((sects || []).map(s => s.course_id).filter(Boolean))];
+      courses = ids.map(id => ({ id, title: COURSE_TITLES[id] || id }));
+    }
+    myCourseAccess = (courses || []).map(c => ({
+      course_id: c.id, role: 'director', course_title: c.title || COURSE_TITLES[c.id] || c.id
+    }));
   } else {
+    // Try instructor_course_access; fall back to sections this instructor teaches
     const [{ data: access }, { data: allCourses }] = await Promise.all([
       db.from('instructor_course_access').select('course_id, role').eq('instructor_id', currentUser.id),
       db.from('courses').select('id, title')
     ]);
-    const courseTitleMap = Object.fromEntries((allCourses || []).map(c => [c.id, c.title]));
-    myCourseAccess = (access || []).map(a => ({
-      course_id: a.course_id, role: a.role, course_title: courseTitleMap[a.course_id]
-    }));
+    if (access?.length) {
+      const courseTitleMap = Object.fromEntries(
+        [...(allCourses || []).map(c => [c.id, c.title]),
+         ...Object.entries(COURSE_TITLES)]
+      );
+      myCourseAccess = access.map(a => ({
+        course_id: a.course_id, role: a.role, course_title: courseTitleMap[a.course_id]
+      }));
+    } else {
+      // Fallback: derive courses from sections this instructor is assigned to
+      const { data: sects } = await db.from('sections').select('course_id')
+        .eq('instructor_id', currentUser.id).order('course_id');
+      const ids = [...new Set((sects || []).map(s => s.course_id).filter(Boolean))];
+      myCourseAccess = ids.map(id => ({
+        course_id: id, role: instructor.is_director ? 'director' : 'instructor',
+        course_title: COURSE_TITLES[id] || id
+      }));
+    }
   }
 
   if (!myCourseAccess.length) {
