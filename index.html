@@ -60,7 +60,7 @@
       <div id="welcome-name" style="font-size:2.4em; font-weight:800; color:#1e3a5f; line-height:1.15"></div>
       <div id="welcome-section" style="font-size:0.95em; color:#64748b; margin-top:4px"></div>
     </div>
-    <h2 style="margin-bottom:4px">My Assignments</h2>
+    <h2 style="margin-bottom:4px" id="assignments-heading">My Assignments</h2>
     <p style="color:var(--muted); font-size:0.88em; margin-bottom:20px">Open assignments can be edited until the deadline. Click any assignment to submit or view your grade.</p>
     <div id="assignment-list"></div>
     <div id="no-assignments" style="display:none; color:var(--muted); font-size:0.9em; padding:20px 0">
@@ -132,6 +132,9 @@ let assignments    = [];
 let currentAssignment = null;
 let answers        = {};
 let saveTimer      = null;
+const urlCourse    = new URLSearchParams(window.location.search).get('course') || 'phys-215';
+const courseTitles = { 'phys-215': 'Physics 215', 'phys-110': 'Physics 110' };
+const courseTitle  = courseTitles[urlCourse] || urlCourse;
 
 // ── Screen helpers ──
 function show(id) {
@@ -179,21 +182,26 @@ async function lookupStudent() {
   document.getElementById('header-name').textContent  = student.name;
   document.getElementById('header-name').style.display = '';
   document.getElementById('welcome-name').textContent    = student.name;
-  document.getElementById('welcome-section').textContent = `Section ${student.section_id}`;
+  document.getElementById('welcome-section').textContent = `${courseTitle} · Section ${student.section_id}`;
   show('screen-assignments');
   loadAssignments();
 }
 
 // ── Assignment List ──
 async function loadAssignments() {
+  document.title = `${courseTitle} — Assignments`;
+  document.querySelector('h1') && (document.querySelector('h1').textContent = `${courseTitle} Assignments`);
+  const heading = document.getElementById('assignments-heading');
+  if (heading) heading.textContent = `My ${courseTitle} Assignments`;
   const listEl = document.getElementById('assignment-list');
   listEl.innerHTML = '<div style="color:var(--muted); font-size:0.9em">Loading…</div>';
 
-  // All published assignments
+  // All published assignments for this course
   const { data: asgns, error } = await db
     .from('assignments')
     .select('id, title, description, due_date_m, due_date_t, reading_link, questions')
     .eq('is_published', true)
+    .eq('course_id', urlCourse)
     .order('due_date_m', { ascending: true, nullsFirst: false });
 
   if (error || !asgns?.length) {

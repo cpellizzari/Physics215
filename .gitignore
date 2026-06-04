@@ -4,6 +4,9 @@ js/config.local.js
 .env*
 config.json
 
+# Skill config — each instructor copies config.json.template locally
+.claude/skills/preflight-analyze/config.json
+
 # macOS
 .DS_Store
 
