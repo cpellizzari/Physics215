@@ -1470,14 +1470,68 @@ async function togglePublish(id, current) {
 // ROSTER TAB
 // ══════════════════════════════════════════════════════
 async function loadRosterTable() {
-  const { data: students } = await db.from('students').select('student_id, name, section_id').order('section_id').order('name');
-  document.getElementById('roster-count').textContent = `${students?.length ?? 0} students enrolled`;
+  const [{ data: allStudents }, { data: sections }] = await Promise.all([
+    db.from('students').select('student_id, name, section_id').order('section_id').order('name'),
+    db.from('sections').select('id').eq('course_id', currentCourse).order('id')
+  ]);
+
+  const sectionIds = (sections || []).map(s => s.id);
+  const sectionSet = new Set(sectionIds);
+  const students = (allStudents || []).filter(s => sectionSet.has(s.section_id));
+  window._rosterSections = sectionIds; // used by the Edit Section modal
+
+  document.getElementById('roster-count').textContent = `${students.length} students enrolled`;
   const wrap = document.getElementById('roster-table');
-  if (!students?.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:0.9em">No students yet. Upload a roster CSV.</div>'; return; }
+  if (!students.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:0.9em">No students yet. Upload a roster CSV.</div>'; return; }
   wrap.innerHTML = `<table>
-    <thead><tr><th>Student ID</th><th>Name</th><th>Section</th></tr></thead>
-    <tbody>${students.map(s => `<tr><td>${s.student_id}</td><td>${esc(s.name)}</td><td>${esc(s.section_id)}</td></tr>`).join('')}</tbody>
+    <thead><tr><th>Student ID</th><th>Name</th><th>Section</th><th></th></tr></thead>
+    <tbody>${students.map(s => `<tr>
+      <td>${s.student_id}</td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(s.section_id)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" onclick="openEditSectionModal(${s.student_id}, '${esc(s.name).replace(/'/g,"\\'")}', '${s.section_id}')">Edit Section</button>
+        <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;margin-left:4px" onclick="removeStudent(${s.student_id}, '${esc(s.name).replace(/'/g,"\\'")}')">Remove</button>
+      </td>
+    </tr>`).join('')}
+    </tbody>
   </table>`;
+}
+
+let editSectionStudentId = null;
+
+async function removeStudent(studentId, name) {
+  if (!confirm(`Remove ${name} (${studentId})?\n\nThis permanently deletes their record, all submissions, and all scores.`)) return;
+  await db.from('scores').delete().eq('student_id', studentId);
+  await db.from('responses').delete().eq('student_id', studentId);
+  await db.from('extensions').delete().eq('student_id', studentId);
+  const { error } = await db.from('students').delete().eq('student_id', studentId);
+  if (error) { alert('Error removing student: ' + error.message); return; }
+  loadRosterTable();
+}
+
+function openEditSectionModal(studentId, name, currentSection) {
+  editSectionStudentId = studentId;
+  document.getElementById('edit-section-student-name').textContent = name + ' (' + studentId + ')';
+  const select = document.getElementById('edit-section-select');
+  select.innerHTML = (window._rosterSections || []).map(s =>
+    `<option value="${s}"${s === currentSection ? ' selected' : ''}>${s}</option>`
+  ).join('');
+  document.getElementById('edit-section-error').textContent = '';
+  document.getElementById('edit-section-modal').style.display = 'flex';
+}
+function closeEditSectionModal() {
+  document.getElementById('edit-section-modal').style.display = 'none';
+  editSectionStudentId = null;
+}
+async function saveStudentSection() {
+  const newSection = document.getElementById('edit-section-select').value;
+  const errEl = document.getElementById('edit-section-error');
+  errEl.textContent = '';
+  const { error } = await db.from('students').update({ section_id: newSection }).eq('student_id', editSectionStudentId);
+  if (error) { errEl.textContent = 'Error: ' + error.message; return; }
+  closeEditSectionModal();
+  loadRosterTable();
 }
 
 function handleDrop(e) {
@@ -1901,6 +1955,22 @@ async function removeExtension(studentId, studentName) {
   loadGradingView();
 }
 </script>
+
+<!-- Edit Section modal -->
+<div id="edit-section-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999; align-items:center; justify-content:center">
+  <div class="card" style="width:340px; padding:28px; position:relative">
+    <h3 style="margin:0 0 4px">Edit Section</h3>
+    <p id="edit-section-student-name" style="margin:0 0 20px; color:var(--muted); font-size:0.9em"></p>
+    <label style="font-size:0.85em; font-weight:600; display:block; margin-bottom:6px">New section</label>
+    <select id="edit-section-select"
+      style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); font-size:0.95em; box-sizing:border-box"></select>
+    <div id="edit-section-error" style="color:#f87171; font-size:0.82em; margin-top:6px; min-height:1em"></div>
+    <div style="display:flex; gap:8px; margin-top:18px">
+      <button class="btn btn-primary" onclick="saveStudentSection()">Save</button>
+      <button class="btn btn-secondary" onclick="closeEditSectionModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- Change Password modal -->
 <div id="change-pw-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999; align-items:center; justify-content:center">
