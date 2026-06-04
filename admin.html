@@ -185,6 +185,7 @@
   <span class="subtitle">Admin</span>
   <span class="spacer"></span>
   <span class="user-chip" id="header-name" style="display:none"></span>
+  <button class="btn btn-secondary btn-sm" id="change-pw-btn" onclick="openChangePwModal()" style="display:none; margin-left:8px">Change Password</button>
   <button class="btn btn-secondary btn-sm" id="logout-btn" onclick="logout()" style="display:none; margin-left:8px">Log out</button>
 </header>
 
@@ -583,6 +584,7 @@ async function initAdmin() {
     : isDirectorForCurrent() ? ' · Director' : '';
   document.getElementById('header-name').textContent = instructor.name + roleLabel;
   document.getElementById('header-name').style.display = '';
+  document.getElementById('change-pw-btn').style.display = '';
   document.getElementById('logout-btn').style.display = '';
 
   buildTabs();
@@ -1810,6 +1812,39 @@ function esc(str) {
 // ══════════════════════════════════════════════════════
 let extModalStudentId = null;
 
+// ── Change Password ──
+function openChangePwModal() {
+  document.getElementById('new-pw-input').value = '';
+  document.getElementById('confirm-pw-input').value = '';
+  document.getElementById('change-pw-error').textContent = '';
+  document.getElementById('change-pw-success').style.display = 'none';
+  document.getElementById('change-pw-modal').style.display = 'flex';
+  document.getElementById('new-pw-input').focus();
+}
+function closeChangePwModal() {
+  document.getElementById('change-pw-modal').style.display = 'none';
+}
+async function saveNewPassword() {
+  const pw = document.getElementById('new-pw-input').value.trim();
+  const confirm = document.getElementById('confirm-pw-input').value.trim();
+  const errEl = document.getElementById('change-pw-error');
+  const okEl = document.getElementById('change-pw-success');
+  errEl.textContent = '';
+  okEl.style.display = 'none';
+
+  if (!pw) { errEl.textContent = 'Please enter a new password.'; return; }
+  if (pw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+  if (pw !== confirm) { errEl.textContent = 'Passwords do not match.'; return; }
+
+  const { error } = await db.auth.updateUser({ password: pw });
+  if (error) { errEl.textContent = 'Error: ' + error.message; return; }
+
+  okEl.style.display = '';
+  document.getElementById('new-pw-input').value = '';
+  document.getElementById('confirm-pw-input').value = '';
+  setTimeout(closeChangePwModal, 1800);
+}
+
 function openExtensionModal(studentId, studentName) {
   extModalStudentId = studentId;
   document.getElementById('ext-modal-name').textContent = studentName;
@@ -1866,6 +1901,26 @@ async function removeExtension(studentId, studentName) {
   loadGradingView();
 }
 </script>
+
+<!-- Change Password modal -->
+<div id="change-pw-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999; align-items:center; justify-content:center">
+  <div class="card" style="width:360px; padding:28px; position:relative">
+    <h3 style="margin:0 0 4px">Change Password</h3>
+    <p style="margin:0 0 20px; color:var(--muted); font-size:0.9em">Enter a new password for your account.</p>
+    <label style="font-size:0.85em; font-weight:600; display:block; margin-bottom:6px">New password</label>
+    <input type="password" id="new-pw-input" placeholder="At least 6 characters"
+      style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); font-size:0.95em; box-sizing:border-box; margin-bottom:10px">
+    <label style="font-size:0.85em; font-weight:600; display:block; margin-bottom:6px">Confirm new password</label>
+    <input type="password" id="confirm-pw-input" placeholder="Repeat password"
+      style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); font-size:0.95em; box-sizing:border-box">
+    <div id="change-pw-error" style="color:#f87171; font-size:0.82em; margin-top:6px; min-height:1em"></div>
+    <div id="change-pw-success" style="color:#16a34a; font-size:0.82em; margin-top:6px; min-height:1em; display:none">Password updated successfully.</div>
+    <div style="display:flex; gap:8px; margin-top:18px">
+      <button class="btn btn-primary" onclick="saveNewPassword()">Save Password</button>
+      <button class="btn btn-secondary" onclick="closeChangePwModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- Extension modal -->
 <div id="extension-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999; align-items:center; justify-content:center">
