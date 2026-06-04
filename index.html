@@ -212,27 +212,32 @@ async function loadAssignments() {
 
   const asgnIds = asgns.map(a => a.id);
 
-  // Student's responses + finalized scores in parallel
-  const [{ data: responses }, { data: scores }] = await Promise.all([
+  // Student's responses + finalized scores + extensions in parallel
+  const [{ data: responses }, { data: scores }, { data: extRows }] = await Promise.all([
     db.from('responses').select('assignment_id, updated_at').eq('student_id', student.student_id),
     db.from('scores').select('assignment_id, total_score, max_total, is_finalized, question_scores')
        .eq('student_id', student.student_id).eq('is_finalized', true).in('assignment_id', asgnIds),
+    db.from('extensions').select('assignment_id, extended_due_date')
+       .eq('student_id', student.student_id).in('assignment_id', asgnIds),
   ]);
 
   const submittedMap = {};
   (responses || []).forEach(r => submittedMap[r.assignment_id] = r.updated_at);
   const scoreMap = {};
   (scores || []).forEach(s => scoreMap[s.assignment_id] = s);
+  const extensionMap = {};
+  (extRows || []).forEach(e => extensionMap[e.assignment_id] = e.extended_due_date);
 
   assignments = asgns;
   listEl.innerHTML = '';
   document.getElementById('no-assignments').style.display = 'none';
 
   asgns.forEach(a => {
-    // Pick due date based on student's section (M-day or T-day)
+    // Pick due date based on student's section (M-day or T-day); honour extension if later
     const isMDay  = student.section_id.startsWith('M');
     const dueRaw  = isMDay ? (a.due_date_m || a.due_date_t) : (a.due_date_t || a.due_date_m);
-    const due     = dueRaw ? new Date(dueRaw) : null;
+    const extRaw  = extensionMap[a.id];
+    const due     = extRaw ? new Date(extRaw) : (dueRaw ? new Date(dueRaw) : null);
     const isPast  = due ? due < new Date() : false;
     const submitted  = submittedMap[a.id];
     const score      = scoreMap[a.id];
@@ -304,8 +309,8 @@ async function openAssignment(a) {
   document.getElementById('asgn-title').textContent = a.title;
   const isMDay = student.section_id.startsWith('M');
   const dueRaw = isMDay ? (a.due_date_m || a.due_date_t) : (a.due_date_t || a.due_date_m);
-  const due    = dueRaw ? new Date(dueRaw) : null;
-  const isPast = due ? due < new Date() : false;
+  // due and isPast are set after the extension fetch below
+  let due, isPast;
   document.getElementById('asgn-meta').textContent = due
     ? `Due: ${due.toLocaleDateString()} ${due.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`
     : '';
@@ -322,12 +327,18 @@ async function openAssignment(a) {
   }
   descEl.innerHTML = descHtml;
 
-  // Fetch response + finalized score in parallel
-  const [{ data: existing }, { data: scoreRow }] = await Promise.all([
+  // Fetch response + finalized score + extension in parallel
+  const [{ data: existing }, { data: scoreRow }, { data: extRow }] = await Promise.all([
     db.from('responses').select('answers').eq('student_id', student.student_id).eq('assignment_id', a.id).single(),
     db.from('scores').select('total_score, max_total, question_scores, is_finalized')
        .eq('student_id', student.student_id).eq('assignment_id', a.id).single(),
+    db.from('extensions').select('extended_due_date')
+       .eq('student_id', student.student_id).eq('assignment_id', a.id).single(),
   ]);
+
+  const extRaw = extRow?.extended_due_date;
+  due    = extRaw ? new Date(extRaw) : (dueRaw ? new Date(dueRaw) : null);
+  isPast = due ? due < new Date() : false;
 
   const isGraded = !!scoreRow?.is_finalized;
 

@@ -442,6 +442,7 @@ let editingAssignment = null;
 let questionItems = [];
 let gradeData = {};
 let gradeAssignment = null;
+let extensionMap = {};   // { student_id: extended_due_date ISO string }
 let reportAnswers        = {};   // { qIdx: [{name, section, answer}] }
 let reportQuestions      = [];   // question objects for the currently loaded report
 let reportSampleMode     = {};   // { qIdx: bool } — true = show random 10
@@ -696,6 +697,11 @@ async function loadGradingView() {
   const scoreMap = {};
   (scores || []).forEach(s => scoreMap[s.student_id] = { qs: s.question_scores || {}, finalized: s.is_finalized });
 
+  const { data: exts } = await db.from('extensions').select('student_id, extended_due_date')
+    .eq('assignment_id', asgnId).in('student_id', studentIds);
+  extensionMap = {};
+  (exts || []).forEach(e => extensionMap[e.student_id] = e.extended_due_date);
+
   // Build gradeData — binary full/warn/zero
   gradeData = {};
   students.forEach(st => {
@@ -751,6 +757,16 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
              <button class="btn btn-secondary btn-sm" style="font-size:0.75em;padding:3px 10px;margin-left:6px;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff"
                onclick="reopenStudent(${st.student_id},'${esc(st.name)}')">✎ Reopen</button>`
           : ''}
+        ${extensionMap[st.student_id]
+          ? `<span style="font-size:0.75em;padding:3px 8px;border-radius:4px;background:rgba(234,179,8,0.25);color:#fef08a;margin-left:6px">
+               📅 Extended: ${new Date(extensionMap[st.student_id]).toLocaleDateString()}
+             </span>
+             <button class="btn btn-secondary btn-sm" style="font-size:0.75em;padding:3px 8px;margin-left:4px;background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#fff"
+               onclick="openExtensionModal(${st.student_id},'${esc(st.name)}')">✎ Edit</button>
+             <button class="btn btn-secondary btn-sm" style="font-size:0.75em;padding:3px 8px;margin-left:2px;background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.4);color:#fca5a5"
+               onclick="removeExtension(${st.student_id},'${esc(st.name)}')">✕ Remove</button>`
+          : `<button class="btn btn-secondary btn-sm" style="font-size:0.75em;padding:3px 10px;margin-left:6px;background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#fff"
+               onclick="openExtensionModal(${st.student_id},'${esc(st.name)}')">📅 Grant Extension</button>`}
         <span class="grade-student-total" id="stotal-${st.student_id}">${total.toFixed(2)} / ${maxTotal.toFixed(2)} pts</span>
       </div>`;
 
@@ -1610,6 +1626,84 @@ function esc(str) {
   return String(str ?? '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ══════════════════════════════════════════════════════
+// EXTENSIONS
+// ══════════════════════════════════════════════════════
+let extModalStudentId = null;
+
+function openExtensionModal(studentId, studentName) {
+  extModalStudentId = studentId;
+  document.getElementById('ext-modal-name').textContent = studentName;
+
+  // Pre-fill with existing extension or assignment due date
+  const existing = extensionMap[studentId];
+  const asgn = gradeAssignment;
+  let defaultDt = existing || (asgn?.due_date_m || asgn?.due_date_t);
+  if (defaultDt) {
+    // datetime-local input needs "YYYY-MM-DDTHH:MM" in local time
+    const d = new Date(defaultDt);
+    const pad = n => String(n).padStart(2, '0');
+    document.getElementById('ext-due-input').value =
+      `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } else {
+    document.getElementById('ext-due-input').value = '';
+  }
+  document.getElementById('ext-modal-error').textContent = '';
+  document.getElementById('extension-modal').style.display = 'flex';
+}
+
+function closeExtensionModal() {
+  document.getElementById('extension-modal').style.display = 'none';
+  extModalStudentId = null;
+}
+
+async function saveExtension() {
+  const studentId = extModalStudentId;
+  const val = document.getElementById('ext-due-input').value;
+  const errEl = document.getElementById('ext-modal-error');
+  if (!val) { errEl.textContent = 'Please select a date and time.'; return; }
+
+  const newDue = new Date(val).toISOString();
+  const asgnId = gradeAssignment.id;
+
+  const { error } = await db.from('extensions').upsert(
+    { student_id: studentId, assignment_id: asgnId, extended_due_date: newDue,
+      granted_by: currentUser.id },
+    { onConflict: 'student_id,assignment_id' }
+  );
+  if (error) { errEl.textContent = `Save failed: ${error.message}`; return; }
+
+  extensionMap[studentId] = newDue;
+  closeExtensionModal();
+  loadGradingView();
+}
+
+async function removeExtension(studentId, studentName) {
+  if (!confirm(`Remove extension for ${studentName}?\n\nThey will be subject to the original due date.`)) return;
+  const { error } = await db.from('extensions')
+    .delete().eq('student_id', studentId).eq('assignment_id', gradeAssignment.id);
+  if (error) { alert(`Failed to remove extension: ${error.message}`); return; }
+  delete extensionMap[studentId];
+  loadGradingView();
+}
 </script>
+
+<!-- Extension modal -->
+<div id="extension-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999; align-items:center; justify-content:center">
+  <div class="card" style="width:380px; padding:28px; position:relative">
+    <h3 style="margin:0 0 4px">Grant Extension</h3>
+    <p id="ext-modal-name" style="margin:0 0 20px; color:var(--muted); font-size:0.9em"></p>
+    <label style="font-size:0.85em; font-weight:600; display:block; margin-bottom:6px">New due date &amp; time</label>
+    <input type="datetime-local" id="ext-due-input"
+      style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); font-size:0.95em; box-sizing:border-box">
+    <div id="ext-modal-error" style="color:#f87171; font-size:0.82em; margin-top:6px; min-height:1em"></div>
+    <div style="display:flex; gap:8px; margin-top:18px">
+      <button class="btn btn-primary" onclick="saveExtension()">Save Extension</button>
+      <button class="btn btn-secondary" onclick="closeExtensionModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
