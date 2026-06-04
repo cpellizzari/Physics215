@@ -1574,7 +1574,7 @@ async function exportBlackboard() {
   const csv = [headers, ...rows].map(r =>
     r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
 
-  triggerDownload(csv, `Physics215_Grades_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
+  triggerDownload(csv, `CorePreflights_Grades_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
   statusEl.textContent = `✓ Downloaded (${students.length} students, ${(asgns||[]).length} assignments)`;
 }
 
@@ -1593,7 +1593,7 @@ async function downloadBackup() {
 
   const backup = { exported_at: new Date().toISOString(), students, assignments, responses, scores };
   triggerDownload(JSON.stringify(backup, null, 2),
-    `Physics215_Backup_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
+    `CorePreflights_Backup_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
 }
 
 function triggerDownload(content, filename, mimeType) {
