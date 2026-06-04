@@ -9,12 +9,17 @@
 
 ## Roles
 
-| Role | Can do |
-|---|---|
-| **Course Director** | Everything — create assignments, upload rosters, manage sections and instructors, run Claude analysis, export grades |
-| **Instructor** | Grade their own sections, view submission reports, export their sections, grant student extensions |
+There are three roles, each with increasing access:
 
-The course director account is `casey.pellizzari@afacademy.af.edu`. Director-only tabs (Assignments, Roster, Sections, Instructors) are hidden from regular instructor accounts.
+| Role | Access | Use for |
+|---|---|---|
+| **Instructor** | Grade their own sections, view reports, export, grant student extensions | Regular instructors |
+| **Course Director** | Full access to one course — create assignments, upload roster, manage sections and instructors | Section leaders per course |
+| **System Admin** | Full access to all courses (Physics 110 and Physics 215) | Department directors, system maintainers |
+
+Director-only tabs (Assignments, Roster, Sections, Instructors) are hidden from regular Instructor accounts. System Admins see all tabs for all courses.
+
+Only a System Admin can create another System Admin.
 
 ---
 
@@ -22,14 +27,17 @@ The course director account is `casey.pellizzari@afacademy.af.edu`. Director-onl
 
 Everything is done from the admin panel — no SQL required.
 
-1. Log into the admin panel as course director
+1. Log into the admin panel as a Course Director or System Admin
 2. Go to the **Instructors** tab
 3. Fill in the instructor's name, USAFA email, and a temporary password
-4. Select their role (**Instructor** or **Director**) and click **Add Instructor**
-5. Send them the admin panel URL and their temporary password — they can change it after first login
-6. Go to the **Sections** tab and assign them to their sections
+4. Select their role and click **Add Instructor**:
+   - **Instructor** — grades their own sections only
+   - **Course Director** — full access to the currently selected course
+   - **System Admin** — full access to all courses (Physics 110 + 215); only an existing System Admin can create another one
+5. Send them the admin panel URL and their temporary password — they change it themselves after first login (see [Changing Your Password](#changing-your-password) below)
+6. Go to the **Sections** tab and assign them to their sections (not needed for System Admins)
 
-> **Note:** The temporary password can be anything — the instructor changes it themselves after logging in for the first time.
+> **Note:** The temporary password can be anything — the instructor changes it themselves after logging in.
 
 ---
 
@@ -38,7 +46,24 @@ Everything is done from the admin panel — no SQL required.
 1. In the **Sections** tab, reassign their sections to another instructor
 2. Go to the **Instructors** tab and click **Remove** next to their name
 
-This removes their course access. Their login account is deactivated but not fully deleted — if you need to permanently delete it, go to the [Supabase Auth dashboard](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/auth/users) and delete the user there.
+For regular instructors and directors, this removes their course access for the currently selected course. For System Admins, it clears their global admin flag.
+
+Their login account remains in the system but loses all access — if you need to permanently delete it, go to the [Supabase Auth dashboard](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/auth/users) and delete the user there.
+
+> **Note:** Only a System Admin can remove another System Admin.
+
+---
+
+## Changing Your Password
+
+Any logged-in instructor can change their own password without contacting the course director.
+
+1. Log into the admin panel
+2. Click **Change Password** in the top-right corner of the header
+3. Enter a new password (at least 6 characters) and confirm it
+4. Click **Save Password** — the modal closes automatically on success
+
+> This is how new instructors should change their temporary password on first login.
 
 ---
 
@@ -211,9 +236,9 @@ Only finalized assignments are included as columns. Unfinalized assignments are 
 
 This section documents what was done to deploy the system — only needed if starting from scratch or re-deploying.
 
-### Deploy the `create-instructor` Edge Function
+### Deploy the Edge Functions
 
-The edge function handles instructor account creation securely. It only needs to be deployed once (or after any code change to it).
+Two edge functions handle instructor account creation and removal securely. They only need to be deployed once (or after any code change to them).
 
 **1. Install the Supabase CLI**
 
@@ -229,13 +254,28 @@ supabase login
 supabase link --project-ref shzvpmlnqfmzfmuxkowi
 ```
 
-**3. Deploy the function**
+**3. Deploy both functions**
 
 ```bash
 supabase functions deploy create-instructor
+supabase functions deploy remove-instructor
 ```
 
-That's it — the function runs on Supabase's servers from that point on. No one else needs the CLI.
+That's it — the functions run on Supabase's servers from that point on. No one else needs the CLI.
+
+### Run the Instructor RLS Migration
+
+Run this once in the [Supabase SQL editor](https://supabase.com/dashboard/project/shzvpmlnqfmzfmuxkowi/sql) to allow the Instructors tab to read all instructor names:
+
+```sql
+-- File: supabase/migrations/instructors_read_policy.sql
+ALTER TABLE instructors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "instructors_read_all" ON instructors;
+CREATE POLICY "instructors_read_all" ON instructors
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "instructors_update_own" ON instructors
+  FOR UPDATE TO authenticated USING (id = auth.uid());
+```
 
 ---
 
