@@ -482,12 +482,13 @@ async function initAdmin() {
     const { data: courses } = await db.from('courses').select('id, title').order('id');
     myCourseAccess = (courses || []).map(c => ({ course_id: c.id, role: 'director', course_title: c.title }));
   } else {
-    const { data: access } = await db
-      .from('instructor_course_access')
-      .select('course_id, role, courses(title)')
-      .eq('instructor_id', currentUser.id);
+    const [{ data: access }, { data: allCourses }] = await Promise.all([
+      db.from('instructor_course_access').select('course_id, role').eq('instructor_id', currentUser.id),
+      db.from('courses').select('id, title')
+    ]);
+    const courseTitleMap = Object.fromEntries((allCourses || []).map(c => [c.id, c.title]));
     myCourseAccess = (access || []).map(a => ({
-      course_id: a.course_id, role: a.role, course_title: a.courses?.title
+      course_id: a.course_id, role: a.role, course_title: courseTitleMap[a.course_id]
     }));
   }
 
