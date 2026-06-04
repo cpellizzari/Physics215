@@ -571,7 +571,8 @@ async function initAdmin() {
   document.getElementById('change-pw-btn').style.display = '';
   document.getElementById('logout-btn').style.display = '';
 
-  buildTabs();
+  buildTabs();          // does NOT auto-activate a tab
+  switchTab('grade');   // activate grade tab once, explicitly
   buildCourseSelector();
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('screen-admin').style.display  = '';
@@ -642,7 +643,6 @@ function buildTabs() {
     btn.onclick = () => switchTab(t.id);
     bar.appendChild(btn);
   });
-  switchTab('grade');
 }
 
 function switchTab(id) {
