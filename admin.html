@@ -382,25 +382,9 @@
       </div>
       <p style="color:var(--muted); font-size:0.88em; margin-bottom:20px">
         Assign an instructor to each section. Sections are created automatically when students are uploaded.
-        Add new instructors in Supabase Auth → Users, then register them below.
+        To add a new instructor first, go to the <strong>Instructors</strong> tab.
       </p>
       <div id="sections-grid" class="section-grid"></div>
-      <div class="card" style="margin-top:24px">
-        <div class="card-title">Register New Instructor</div>
-        <div class="card-meta">First create their account in Supabase Auth, then paste their UUID here.</div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end">
-          <div class="field" style="margin:0; flex:1; min-width:200px">
-            <label>Name</label>
-            <input type="text" id="new-instructor-name" placeholder="Capt Smith">
-          </div>
-          <div class="field" style="margin:0; flex:2; min-width:280px">
-            <label>Supabase UUID</label>
-            <input type="text" id="new-instructor-uuid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-          </div>
-          <button class="btn btn-primary" onclick="registerInstructor()">Register</button>
-        </div>
-        <div id="instructor-reg-status" style="margin-top:8px; font-size:0.82em; color:var(--green)"></div>
-      </div>
     </div>
 
     <!-- ══════════════════════════════════════════
@@ -1640,20 +1624,6 @@ async function loadSections() {
 
 async function assignInstructor(sectionId, instructorId) {
   await db.from('sections').update({ instructor_id: instructorId || null }).eq('id', sectionId);
-}
-
-async function registerInstructor() {
-  const name     = document.getElementById('new-instructor-name').value.trim();
-  const uuid     = document.getElementById('new-instructor-uuid').value.trim();
-  const statusEl = document.getElementById('instructor-reg-status');
-  if (!name || !uuid) { statusEl.style.color = 'var(--red)'; statusEl.textContent = 'Name and UUID required.'; return; }
-  const { error } = await db.from('instructors').insert({ id: uuid, name, is_director: false });
-  if (error) { statusEl.style.color = 'var(--red)'; statusEl.textContent = '⚠ ' + error.message; return; }
-  statusEl.style.color = 'var(--green)';
-  statusEl.textContent = `✓ ${name} registered!`;
-  document.getElementById('new-instructor-name').value = '';
-  document.getElementById('new-instructor-uuid').value = '';
-  setTimeout(loadSections, 1000);
 }
 
 // ══════════════════════════════════════════════════════
