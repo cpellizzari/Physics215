@@ -14,23 +14,25 @@ CREATE TABLE IF NOT EXISTS instructors (
 
 -- ============================================================
 -- SECTIONS
--- Configure once per semester. Format: [M|T][1|3|6][A-C]
+-- Configure once per semester. Format: [M|T][1|3|5][A-D]
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sections (
-  id TEXT PRIMARY KEY CHECK (id ~ '^[MT][136][A-C]$'),
+  id TEXT PRIMARY KEY CHECK (id ~ '^[MT][135][A-D]$'),
   instructor_id UUID REFERENCES instructors(id) ON DELETE SET NULL
 );
 
 -- ============================================================
 -- STUDENTS
 -- Uploaded via CSV at semester start. IDs are 10-digit numbers
--- beginning with 3000.
+-- beginning with 3000. auth_user_id links to Supabase Auth account
+-- (email = student_id@usafa.edu, default password = last 6 digits).
 -- ============================================================
 CREATE TABLE IF NOT EXISTS students (
   student_id BIGINT PRIMARY KEY
     CHECK (student_id >= 3000000000 AND student_id <= 3009999999),
   name TEXT NOT NULL,
-  section_id TEXT REFERENCES sections(id) ON DELETE SET NULL
+  section_id TEXT REFERENCES sections(id) ON DELETE SET NULL,
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
 -- ============================================================

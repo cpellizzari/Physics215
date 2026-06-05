@@ -345,6 +345,17 @@
         <h3>Student Roster</h3>
         <div id="roster-count" style="color:var(--muted); font-size:0.88em"></div>
       </div>
+      <!-- Student auth provisioning card -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">Student Auth Accounts</div>
+        <div id="provision-status-msg" style="font-size:0.88em;color:var(--muted)">Loading…</div>
+        <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+          <button class="btn btn-primary" id="provision-btn"
+                  onclick="provisionStudents()" style="display:none">Provision Accounts</button>
+          <span id="provision-result" style="font-size:0.82em"></span>
+        </div>
+      </div>
+
       <div class="card" style="margin-bottom:20px">
         <div class="card-title">Upload Roster CSV</div>
         <div class="card-meta">Required columns: <code>student_id</code>, <code>name</code>, <code>section</code></div>
@@ -1447,7 +1458,7 @@ async function togglePublish(id, current) {
 // ══════════════════════════════════════════════════════
 async function loadRosterTable() {
   const [{ data: allStudents }, { data: sections }] = await Promise.all([
-    db.from('students').select('student_id, name, section_id').order('section_id').order('name'),
+    db.from('students').select('student_id, name, section_id, auth_user_id').order('section_id').order('name'),
     db.from('sections').select('id').eq('course_id', currentCourse).order('id')
   ]);
 
@@ -1456,15 +1467,36 @@ async function loadRosterTable() {
   const students = (allStudents || []).filter(s => sectionSet.has(s.section_id));
   window._rosterSections = sectionIds; // used by the Edit Section modal
 
+  // Update provision card status
+  const unprovisioned = students.filter(s => !s.auth_user_id).length;
+  const msgEl = document.getElementById('provision-status-msg');
+  const btnEl = document.getElementById('provision-btn');
+  if (msgEl) {
+    if (students.length === 0) {
+      msgEl.textContent = 'Upload a roster to provision student accounts.';
+      if (btnEl) btnEl.style.display = 'none';
+    } else if (unprovisioned === 0) {
+      msgEl.textContent = `All ${students.length} students have auth accounts.`;
+      if (btnEl) btnEl.style.display = 'none';
+    } else {
+      msgEl.textContent = `${unprovisioned} of ${students.length} students need auth accounts provisioned.`;
+      if (btnEl) {
+        btnEl.style.display = '';
+        btnEl.textContent = `Provision ${unprovisioned} Account${unprovisioned !== 1 ? 's' : ''}`;
+      }
+    }
+  }
+
   document.getElementById('roster-count').textContent = `${students.length} students enrolled`;
   const wrap = document.getElementById('roster-table');
   if (!students.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:0.9em">No students yet. Upload a roster CSV.</div>'; return; }
   wrap.innerHTML = `<table>
-    <thead><tr><th>Student ID</th><th>Name</th><th>Section</th><th></th></tr></thead>
+    <thead><tr><th>Student ID</th><th>Name</th><th>Section</th><th style="text-align:center">Auth</th><th></th></tr></thead>
     <tbody>${students.map(s => `<tr>
       <td>${s.student_id}</td>
       <td>${esc(s.name)}</td>
       <td>${esc(s.section_id)}</td>
+      <td style="text-align:center;font-size:0.82em;color:${s.auth_user_id ? '#16a34a' : 'var(--muted)'}">${s.auth_user_id ? '✓' : '—'}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-secondary btn-sm" onclick="openEditSectionModal(${s.student_id}, '${esc(s.name).replace(/'/g,"\\'")}', '${s.section_id}')">Edit Section</button>
         <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;margin-left:4px" onclick="removeStudent(${s.student_id}, '${esc(s.name).replace(/'/g,"\\'")}')">Remove</button>
@@ -1472,6 +1504,49 @@ async function loadRosterTable() {
     </tr>`).join('')}
     </tbody>
   </table>`;
+}
+
+async function provisionStudents() {
+  const btn = document.getElementById('provision-btn');
+  const resultEl = document.getElementById('provision-result');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Provisioning…';
+  resultEl.textContent = '';
+
+  const { data: { session } } = await db.auth.getSession();
+  let result;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/provision-students`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': SUPABASE_ANON
+      },
+      body: JSON.stringify({ course_id: currentCourse })
+    });
+    result = await resp.json();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Provision Accounts';
+    resultEl.style.color = '#f87171';
+    resultEl.textContent = '⚠ Network error: ' + e.message;
+    return;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Provision Accounts';
+
+  if (result.error) {
+    resultEl.style.color = '#f87171';
+    resultEl.textContent = '⚠ ' + result.error;
+    return;
+  }
+  resultEl.style.color = '#16a34a';
+  resultEl.textContent = `✓ ${result.count} account${result.count !== 1 ? 's' : ''} created` +
+    (result.errors?.length ? ` (${result.errors.length} failed — see console)` : '');
+  if (result.errors?.length) console.warn('Provision errors:', result.errors);
+  setTimeout(loadRosterTable, 1200);
 }
 
 let editSectionStudentId = null;
@@ -1541,7 +1616,7 @@ function parseCsv(text) {
     const sect = cols[sectIdx]?.toUpperCase();
     if (isNaN(sid) || sid < 3000000000 || sid > 3009999999)
       errors.push(`Row ${li+2}: invalid student_id "${cols[idIdx]}"`);
-    else if (!/^[MT][136][A-D]$/.test(sect))
+    else if (!/^[MT][135][A-D]$/.test(sect))
       errors.push(`Row ${li+2}: invalid section "${cols[sectIdx]}"`);
     else
       rows.push({ student_id: sid, name, section_id: sect });

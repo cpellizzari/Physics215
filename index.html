@@ -37,18 +37,31 @@
   <span class="user-chip" id="header-name" style="display:none"></span>
 </header>
 
-<!-- ── SCREEN 1: ID Entry ── -->
+<!-- ── SCREEN 1: Login ── -->
 <div id="screen-id" class="id-screen">
   <div class="id-card">
     <div class="crest">⚡</div>
     <h1>Physics 215 Assignments</h1>
-    <p>Enter your 10-digit student ID to get started.</p>
+    <p>Enter your student ID and password to sign in.</p>
     <div id="id-error" class="alert alert-error" style="display:none"></div>
-    <div class="id-input-group">
+    <div style="text-align:left;margin-bottom:12px">
+      <label style="display:block;font-size:0.82em;font-weight:600;margin-bottom:4px;color:var(--text)">Student ID</label>
       <input type="text" id="id-input" placeholder="3000000000" maxlength="10"
-             inputmode="numeric" pattern="[0-9]*" autocomplete="off">
-      <button class="btn btn-primary" id="id-btn" onclick="lookupStudent()">Go</button>
+             inputmode="numeric" pattern="[0-9]*" autocomplete="username"
+             style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:1em;box-sizing:border-box">
     </div>
+    <div style="text-align:left;margin-bottom:18px">
+      <label style="display:block;font-size:0.82em;font-weight:600;margin-bottom:4px;color:var(--text)">Password</label>
+      <input type="password" id="pw-input" placeholder="Last 6 digits of your ID"
+             autocomplete="current-password"
+             style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:1em;box-sizing:border-box">
+    </div>
+    <button class="btn btn-primary" id="id-btn" onclick="loginStudent()"
+            style="width:100%;padding:12px">Sign In</button>
+    <p style="font-size:0.75em;color:var(--muted);margin-top:12px;margin-bottom:0">
+      Default password: last 6 digits of your student ID.<br>
+      Contact your instructor if you need a reset.
+    </p>
   </div>
 </div>
 
@@ -143,13 +156,17 @@ function show(id) {
   });
 }
 
-// ── ID Lookup ──
+// ── Login ──
 document.getElementById('id-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') lookupStudent();
+  if (e.key === 'Enter') document.getElementById('pw-input').focus();
+});
+document.getElementById('pw-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loginStudent();
 });
 
-async function lookupStudent() {
+async function loginStudent() {
   const raw   = document.getElementById('id-input').value.trim();
+  const pw    = document.getElementById('pw-input').value;
   const errEl = document.getElementById('id-error');
   errEl.style.display = 'none';
 
@@ -158,23 +175,53 @@ async function lookupStudent() {
     errEl.style.display = '';
     return;
   }
+  if (!pw) {
+    errEl.textContent = 'Please enter your password.';
+    errEl.style.display = '';
+    return;
+  }
 
   const btn = document.getElementById('id-btn');
   btn.innerHTML = '<span class="spinner"></span>';
   btn.disabled  = true;
 
+  // Sign in with Supabase Auth (email = studentId@usafa.edu)
+  const { error: authErr } = await db.auth.signInWithPassword({
+    email: raw + '@usafa.edu',
+    password: pw
+  });
+
+  if (authErr) {
+    // Give a helpful message: distinguish "wrong password" from "ID not found"
+    const { data: stuCheck } = await db
+      .from('students')
+      .select('student_id')
+      .eq('student_id', parseInt(raw))
+      .single();
+
+    btn.innerHTML = 'Sign In';
+    btn.disabled  = false;
+    errEl.textContent = stuCheck
+      ? 'Incorrect password. Default password is the last 6 digits of your student ID. Contact your instructor if you need a reset.'
+      : 'Student ID not found. Please check your ID or contact your instructor.';
+    errEl.style.display = '';
+    return;
+  }
+
+  // Auth succeeded — fetch student record
   const { data, error } = await db
     .from('students')
     .select('student_id, name, section_id')
     .eq('student_id', parseInt(raw))
     .single();
 
-  btn.innerHTML = 'Go';
+  btn.innerHTML = 'Sign In';
   btn.disabled  = false;
 
   if (error || !data) {
-    errEl.textContent = 'Student ID not found. Please check your ID or contact your instructor.';
+    errEl.textContent = 'Account verified but student record not found. Contact your instructor.';
     errEl.style.display = '';
+    await db.auth.signOut();
     return;
   }
 
