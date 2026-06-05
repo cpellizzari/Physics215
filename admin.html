@@ -1645,13 +1645,15 @@ async function commitRoster() {
   if (!pendingRoster.length) return;
   const statusEl = document.getElementById('roster-upload-status');
   statusEl.textContent = 'Uploading…';
-  const { error } = await db.from('students').upsert(pendingRoster, { onConflict: 'student_id' });
-  if (error) { statusEl.style.color = 'var(--red)'; statusEl.textContent = '⚠ ' + error.message; return; }
+  // Sections must be created BEFORE students (FK constraint: students.section_id → sections.id)
   const sections = [...new Set(pendingRoster.map(r => r.section_id))];
-  await db.from('sections').upsert(
+  const { error: sectErr } = await db.from('sections').upsert(
     sections.map(id => ({ id, course_id: currentCourse })),
     { onConflict: 'id', ignoreDuplicates: false }
   );
+  if (sectErr) { statusEl.style.color = 'var(--red)'; statusEl.textContent = '⚠ ' + sectErr.message; return; }
+  const { error } = await db.from('students').upsert(pendingRoster, { onConflict: 'student_id' });
+  if (error) { statusEl.style.color = 'var(--red)'; statusEl.textContent = '⚠ ' + error.message; return; }
   statusEl.style.color = 'var(--green)';
   statusEl.textContent = `✓ ${pendingRoster.length} students uploaded!`;
   pendingRoster = [];
