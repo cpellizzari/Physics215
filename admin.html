@@ -1721,23 +1721,30 @@ async function loadInstructorsTab() {
   const listEl = document.getElementById('instructors-list');
   listEl.innerHTML = '<div style="color:var(--muted);font-size:0.9em">Loading…</div>';
 
-  // Fetch course instructors + system admins in parallel
-  const [{ data: courseRows }, { data: sysAdmins }] = await Promise.all([
+  // Fetch course access rows, system admins, and all instructor names in parallel.
+  // Querying instructors separately (not as a join) avoids silent null-returns if the
+  // joined table's RLS blocks the read.
+  const [{ data: courseRows }, { data: sysAdmins }, { data: allInstrs }] = await Promise.all([
     db.from('instructor_course_access')
-      .select('instructor_id, role, instructors(name)')
+      .select('instructor_id, role')
       .eq('course_id', currentCourse),
     db.from('instructors')
       .select('id, name')
       .eq('is_global_admin', true),
+    db.from('instructors')
+      .select('id, name'),
   ]);
 
-  // Build rows: system admins first (deduped), then course instructors
+  // Build a name lookup map from the full instructors list
+  const instrMap = Object.fromEntries((allInstrs || []).map(i => [i.id, i.name]));
+
+  // Build rows: system admins first (deduped), then course directors/instructors
   const sysAdminIds = new Set((sysAdmins || []).map(a => a.id));
   const rows = [
     ...(sysAdmins || []).map(a => ({ instructor_id: a.id, name: a.name, role: 'system_admin' })),
     ...(courseRows || [])
-      .filter(r => !sysAdminIds.has(r.instructor_id))  // don't double-list
-      .map(r => ({ instructor_id: r.instructor_id, name: r.instructors?.name || '(unknown)', role: r.role })),
+      .filter(r => !sysAdminIds.has(r.instructor_id))  // don't double-list system admins
+      .map(r => ({ instructor_id: r.instructor_id, name: instrMap[r.instructor_id] || '(unknown)', role: r.role })),
   ];
 
   if (!rows.length) {

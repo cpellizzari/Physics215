@@ -295,6 +295,18 @@ CREATE POLICY "directors_delete_students" ON students
   USING (true);
 ```
 
+**Course access read policy** — allows the Instructors tab to list all directors and instructors for a course:
+
+```sql
+-- supabase/migrations/instructor_course_access_read_policy.sql
+ALTER TABLE instructor_course_access ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "course_access_read_authenticated" ON instructor_course_access;
+CREATE POLICY "course_access_read_authenticated" ON instructor_course_access
+  FOR SELECT TO authenticated
+  USING (true);
+```
+
 ---
 
 ## Course Director Service Key
