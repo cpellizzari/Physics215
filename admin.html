@@ -708,12 +708,8 @@ async function loadGradingView() {
     sectionIds = await getCourseAllSections();
   } else if (sectionFilter) {
     sectionIds = [sectionFilter];
-  } else if (mySections.length) {
-    sectionIds = mySections;
-  } else if (isDirectorForCurrent()) {
-    sectionIds = await getCourseAllSections(); // director with no assigned sections
   } else {
-    sectionIds = [];
+    sectionIds = mySections; // "my sections" = only sections you are assigned to as instructor
   }
   const { data: students } = await db.from('students').select('student_id, name, section_id')
     .in('section_id', sectionIds.length ? sectionIds : ['__none__']).order('name');
@@ -979,12 +975,8 @@ async function loadReport() {
     sectionIds = await getCourseAllSections();
   } else if (sectionFilter) {
     sectionIds = [sectionFilter];
-  } else if (mySections.length) {
-    sectionIds = mySections;
-  } else if (isDirectorForCurrent()) {
-    sectionIds = await getCourseAllSections();
   } else {
-    sectionIds = [];
+    sectionIds = mySections; // "my sections" = only sections you are assigned to as instructor
   }
   const { data: students } = await db.from('students').select('student_id, name, section_id')
     .in('section_id', sectionIds.length ? sectionIds : ['__none__']).order('name');
