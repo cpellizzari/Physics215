@@ -640,12 +640,26 @@
               <td style="padding:8px 10px;font-weight:600">Set a reading link</td>
               <td style="padding:8px 10px">Paste a URL into the <strong>Reading Link</strong> field. It appears as a button at the top of the student submission page.</td>
             </tr>
-            <tr>
+            <tr style="border-bottom:1px solid var(--border)">
               <td style="padding:8px 10px;font-weight:600">Reference PDF &amp; pages</td>
               <td style="padding:8px 10px">Used by the Claude analysis skill (<code>/preflight-analyze</code>) for RAG. Set to the textbook PDF filename and relevant page range (e.g. <code>45-52, 60</code>).</td>
             </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Add a figure to an assignment</td>
+              <td style="padding:8px 10px">Paste an image URL into the <strong>Assignment Figure</strong> field. The image appears above all questions on the student page — useful for a shared diagram that applies to multiple questions. A live preview appears in the editor as you type.</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 10px;font-weight:600">Add a figure to a question</td>
+              <td style="padding:8px 10px">Each question card has its own <strong>Question Figure</strong> field. Paste an image URL there to show a diagram directly below that question's text on the student page and in the Grade tab.</td>
+            </tr>
           </tbody>
         </table>
+
+        <div class="alert alert-info" style="margin-top:14px;font-size:0.85em">
+          <strong>Where to host figures:</strong> Drop image files into <code>img/assignments/</code> in the repo and commit them. GitHub Pages serves them at
+          <code>https://dfpm-physics.github.io/Core_Preflights/img/assignments/<em>filename.png</em></code>.
+          You can also paste any external image URL. See <em>System Guide → Adding Figures to Assignments</em> for details.
+        </div>
       </div>
 
       <!-- INSTRUCTOR MANAGEMENT -->

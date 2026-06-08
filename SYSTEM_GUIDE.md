@@ -186,6 +186,56 @@ Suggested scores appear highlighted in the admin **Grade** tab. Instructors revi
 
 ---
 
+## Adding Figures to Assignments
+
+Assignments support two levels of optional figures — an assignment-level figure shown above all questions, and per-question figures shown inline with a specific question.
+
+### Where to put image files
+
+Drop image files into the `img/assignments/` folder in the repo:
+
+```
+Core_Preflights/
+  img/
+    assignments/
+      coulombs-law-diagram.png
+      force-diagram-q2.png
+      ...
+```
+
+GitHub Pages serves this folder automatically, so the public URL for any file is:
+
+```
+https://dfpm-physics.github.io/Core_Preflights/img/assignments/your-filename.png
+```
+
+Commit and push the image file, then use that URL in the admin panel. The image will be live as soon as GitHub Pages deploys (usually under 2 minutes).
+
+You can also use any external image URL (e.g., a link directly from OpenStax or any publicly accessible host) — just paste the full URL.
+
+### How to add a figure
+
+**Assignment-level figure** (shown above all questions):
+1. Go to the **Assignments** tab and open or create an assignment
+2. Paste the image URL into the **Assignment Figure** field
+3. A live preview appears immediately — verify it looks right before saving
+
+**Per-question figure** (shown below a specific question's text):
+1. In the question builder, each question has its own **Question Figure** field
+2. Paste the URL there — a preview appears inline in the editor
+
+### What students and instructors see
+
+| Context | Assignment figure | Question figure |
+|---|---|---|
+| Student submission page | Above all questions | Below the question text, above the answer input |
+| Student review (graded) | Above all questions | Below the question text |
+| Instructor Grade tab | — | Below the question text in each student's card |
+
+Figures are stored as URLs in the database — no file upload to Supabase is needed.
+
+---
+
 ## Starting a New Semester
 
 Use the same assignments with updated due dates. The process clears all student data and submissions while keeping assignments intact.
