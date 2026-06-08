@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   questions JSONB NOT NULL DEFAULT '[]',
   reference_pdf TEXT,
   reference_pages TEXT,
+  figure_url TEXT,          -- optional image URL shown above all questions
   is_published BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

@@ -95,6 +95,9 @@
       <div id="asgn-desc" style="font-size:0.9em; color:var(--muted)"></div>
     </div>
 
+    <!-- Optional assignment-level figure (shown above questions in both submit and review modes) -->
+    <div id="asgn-figure-block" style="display:none; margin-bottom:20px; text-align:center"></div>
+
     <!-- ── SUBMIT MODE (open assignments) ── -->
     <div id="submit-mode">
       <div id="asgn-closed-banner" class="alert alert-warn" style="display:none">
@@ -246,7 +249,7 @@ async function loadAssignments() {
   // All published assignments for this course
   const { data: asgns, error } = await db
     .from('assignments')
-    .select('id, title, description, due_date_m, due_date_t, reading_link, questions')
+    .select('id, title, description, due_date_m, due_date_t, reading_link, figure_url, questions')
     .eq('is_published', true)
     .eq('course_id', urlCourse)
     .order('due_date_m', { ascending: true, nullsFirst: false });
@@ -374,6 +377,17 @@ async function openAssignment(a) {
   }
   descEl.innerHTML = descHtml;
 
+  // Show assignment-level figure (if set) above the questions
+  const figEl = document.getElementById('asgn-figure-block');
+  if (a.figure_url) {
+    figEl.innerHTML = `<img src="${esc(a.figure_url)}" alt="Assignment figure"
+      style="max-width:100%; max-height:400px; border-radius:8px; border:1px solid var(--border); display:block; margin:0 auto">`;
+    figEl.style.display = '';
+  } else {
+    figEl.innerHTML = '';
+    figEl.style.display = 'none';
+  }
+
   // Fetch response + finalized score + extension in parallel
   const [{ data: existing }, { data: scoreRow }, { data: extRow }] = await Promise.all([
     db.from('responses').select('answers').eq('student_id', student.student_id).eq('assignment_id', a.id).single(),
@@ -463,9 +477,16 @@ function renderQuestions(questions, readOnly) {
           id="ta-${q.id}">${esc(val)}</textarea>`;
     }
 
+    const qFigHtml = q.figure_url
+      ? `<div style="margin:10px 0 14px; text-align:center">
+           <img src="${esc(q.figure_url)}" alt="Question figure"
+             style="max-width:100%; max-height:320px; border-radius:6px; border:1px solid var(--border); display:block; margin:0 auto">
+         </div>`
+      : '';
     block.innerHTML = `
       <div class="question-number">Question ${idx + 1}</div>
       <div class="question-text">${esc(q.text)}</div>
+      ${qFigHtml}
       <div class="question-pts">${pts}</div>
       ${inputHtml}`;
     container.appendChild(block);
@@ -493,11 +514,18 @@ function renderReviewQuestions(questions, studentAnswers, questionScores) {
       ? `<div class="review-feedback"><strong>Instructor feedback:</strong> ${esc(qs.feedback)}</div>`
       : '';
 
+    const revFigHtml = q.figure_url
+      ? `<div style="margin:10px 0 14px; text-align:center">
+           <img src="${esc(q.figure_url)}" alt="Question figure"
+             style="max-width:100%; max-height:320px; border-radius:6px; border:1px solid var(--border); display:block; margin:0 auto">
+         </div>`
+      : '';
     const block = document.createElement('div');
     block.className = 'question-block';
     block.innerHTML = `
       <div class="question-number">Question ${idx + 1}</div>
       <div class="question-text">${esc(q.text)}</div>
+      ${revFigHtml}
       <div class="question-pts">${pts}</div>
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px">
         <span class="review-score-badge ${status}">${labels[status] || labels.full}</span>
