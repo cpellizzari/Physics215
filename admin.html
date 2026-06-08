@@ -1667,11 +1667,11 @@ function setQuestionPoints(idx, value) {
   questionItems[idx].points = isNaN(v) ? 1 : v;
 }
 
-// When a user first picks a date, the browser defaults the time to 00:00.
-// Snap it to 23:59 automatically — they can change it if needed.
+// Always snap the time to 23:59 when a date is picked.
+// The time portion can be overridden manually in the input if needed.
 function defaultDueTime(input) {
-  if (input.value && input.value.endsWith('T00:00')) {
-    input.value = input.value.replace('T00:00', 'T23:59');
+  if (input.value) {
+    input.value = input.value.split('T')[0] + 'T23:59';
   }
 }
 
