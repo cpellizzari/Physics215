@@ -7,6 +7,11 @@ config.json
 # Skill config — each instructor copies config.json.template locally
 .claude/skills/preflight-analyze/config.json
 
+# Textbook PDFs — too large for git (~968 MB); download from Teams instead
+# See textbook-pdfs/README.md for instructions
+textbook-pdfs/**/*.pdf
+textbook-pdfs/**/*.PDF
+
 # macOS
 .DS_Store
 

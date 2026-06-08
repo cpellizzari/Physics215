@@ -90,41 +90,43 @@ Store as `SUPA_KEY`.
 
 ### 3c. Textbook PDF Path
 
-Tell the user:
-
-> The skill reads OpenStax textbook PDFs to ground its physics analysis. These files
-> are ~968 MB total and are **not** in the git repo — they live in the shared USAFA
-> OneDrive folder. You need that folder synced to your machine before the skill can
-> use them.
->
-> **To find your local sync path:**
-> - **macOS**: Open Finder, navigate to the synced OneDrive folder, right-click the
->   `Text_Book_PDFs/215 Sections` subfolder → **Get Info** → copy the path shown under
->   "Where". It typically looks like:
->   `/Users/{you}/Library/CloudStorage/OneDrive-afacademy.af.edu/USAFA Classes/Physics_215_Fall_2026/Text_Book_PDFs/215 Sections/`
-> - **Windows**: Open File Explorer, navigate to the OneDrive folder, click the address
->   bar to copy the full path. It typically looks like:
->   `C:\Users\{you}\OneDrive - afacademy.af.edu\USAFA Classes\Physics_215_Fall_2026\Text_Book_PDFs\215 Sections\`
->
-> If you haven't synced this folder yet, open OneDrive and make sure
-> `USAFA Classes/Physics_215_Fall_2026/Text_Book_PDFs` is set to sync. You can still
-> finish setup now and update the path later by re-running `/setup-preflight`.
-
-Ask: **"Paste the full path to your local `215 Sections` PDF folder (or press Enter to skip for now):"**
-
-If they press Enter or type nothing, store `PDF_PATH` as an empty string and note it needs to be set later.
-
-Otherwise, after they enter a path, check if the directory exists and has PDF files:
+The PDF path is derived automatically from the repo location — no need to ask the user
+for it. Run:
 
 ```bash
-ls "{path}"/*.pdf 2>/dev/null | head -5
+git rev-parse --show-toplevel
 ```
 
-- If PDFs are found: show the first few filenames and confirm: "✓ Found the PDF folder."
-- If the directory exists but has no PDFs: warn — "That folder exists but no PDF files were found. Make sure OneDrive has finished syncing."
-- If the path doesn't exist at all: warn — "That path wasn't found on this machine. Check that OneDrive is synced and the path is correct. You can update it later by re-running `/setup-preflight`." — do not block.
+Store the result as `REPO_ROOT`. Then construct:
 
-Store as `PDF_PATH`.
+```
+PDF_PATH = {REPO_ROOT}/textbook-pdfs/{COURSE_ID}/
+```
+
+Check whether PDFs are already in place:
+
+```bash
+ls "{PDF_PATH}"*.pdf 2>/dev/null | head -5
+```
+
+**If PDFs are found:** show the first few filenames. Tell the user:
+> ✓ Found your textbook PDFs at `{PDF_PATH}`
+
+**If the folder exists but no PDFs are present:** tell the user:
+> The textbook PDF folder is at `{PDF_PATH}` but it's empty. You'll need to download
+> the PDFs from the shared Teams channel before the analysis skill can read reference
+> material. Here's how:
+>
+> 1. Open the **Physics department Teams channel**
+> 2. Go to **Files** → `Core_Preflights_PDFs`
+> 3. Download the `{COURSE_ID}` subfolder
+> 4. Copy the PDF files into: `{PDF_PATH}`
+>
+> You can finish setup now and add the PDFs later — the skill will still run without
+> them, just without textbook context. Re-run `/setup-preflight` after adding the
+> files to verify.
+
+Store as `PDF_PATH` regardless (the folder exists even if empty).
 
 ### 3d. Default Course
 
@@ -198,13 +200,15 @@ fetch(cfg.supabase_url + '/rest/v1/courses?select=id,title', {
 
 ---
 
-## Step 6 — Verify the Textbook Path (Optional Spot-Check)
+## Step 6 — Remind About PDFs If Missing
 
-If the PDF path was confirmed in Step 3c, skip this. If it was unconfirmed, remind the user:
+If PDFs were found in Step 3c, skip this step entirely.
 
-> "Your textbook path (`{PDF_PATH}`) wasn't found. The skill will still run but won't
-> be able to read reference pages for grounding. When you have the files locally, run
-> `/setup-preflight` again to update the path."
+If the folder was empty, print a one-line reminder at the end of the summary:
+
+> ⚠️ **PDFs not yet downloaded.** The skill will run but won't have textbook context.
+> Download the `{COURSE_ID}` folder from Teams → Files → `Core_Preflights_PDFs` and
+> copy the files into `{PDF_PATH}`.
 
 ---
 

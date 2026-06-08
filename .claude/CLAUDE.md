@@ -51,7 +51,17 @@ and verifies the connection. Takes about 2 minutes.
 **Manual setup** (if you prefer):
 1. `cp .claude/skills/preflight-analyze/config.json.template ~/.claude/skills/preflight-analyze/config.json`
 2. Fill in `supabase_url`, `supabase_service_key` (service_role key from Supabase dashboard → Project Settings → API), `textbook_base_path`, `default_course_id`
-3. The `config.json` is gitignored — never commit it
+3. Set `textbook_base_path` to `{repo_root}/textbook-pdfs/{course_id}/` (see below)
+4. The `config.json` is gitignored — never commit it
+
+**Textbook PDFs** (`textbook-pdfs/` — gitignored, ~968 MB):
+PDFs are NOT in the repo. Download from Teams → Files → `Core_Preflights_PDFs` and place in:
+```
+textbook-pdfs/
+  phys-215/    ← Physics 215 lesson PDFs
+  phys-110/    ← Physics 110 lesson PDFs
+```
+See `textbook-pdfs/README.md` for full instructions.
 
 **Usage**: `/preflight-analyze [course_id] [assignment_id] [M|T]`
 
