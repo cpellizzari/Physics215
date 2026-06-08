@@ -90,17 +90,39 @@ Store as `SUPA_KEY`.
 
 ### 3c. Textbook PDF Path
 
-Ask: **"What is the full path to your textbook PDF folder?"**
-Add a hint: "(e.g. `/Users/yourname/OneDrive/Physics/Text_Book_PDFs/215 Sections/`)"
+Tell the user:
 
-After they enter a path, check if the directory exists:
+> The skill reads OpenStax textbook PDFs to ground its physics analysis. These files
+> are ~968 MB total and are **not** in the git repo — they live in the shared USAFA
+> OneDrive folder. You need that folder synced to your machine before the skill can
+> use them.
+>
+> **To find your local sync path:**
+> - **macOS**: Open Finder, navigate to the synced OneDrive folder, right-click the
+>   `Text_Book_PDFs/215 Sections` subfolder → **Get Info** → copy the path shown under
+>   "Where". It typically looks like:
+>   `/Users/{you}/Library/CloudStorage/OneDrive-afacademy.af.edu/USAFA Classes/Physics_215_Fall_2026/Text_Book_PDFs/215 Sections/`
+> - **Windows**: Open File Explorer, navigate to the OneDrive folder, click the address
+>   bar to copy the full path. It typically looks like:
+>   `C:\Users\{you}\OneDrive - afacademy.af.edu\USAFA Classes\Physics_215_Fall_2026\Text_Book_PDFs\215 Sections\`
+>
+> If you haven't synced this folder yet, open OneDrive and make sure
+> `USAFA Classes/Physics_215_Fall_2026/Text_Book_PDFs` is set to sync. You can still
+> finish setup now and update the path later by re-running `/setup-preflight`.
+
+Ask: **"Paste the full path to your local `215 Sections` PDF folder (or press Enter to skip for now):"**
+
+If they press Enter or type nothing, store `PDF_PATH` as an empty string and note it needs to be set later.
+
+Otherwise, after they enter a path, check if the directory exists and has PDF files:
 
 ```bash
-ls "{path}" 2>/dev/null | head -5
+ls "{path}"/*.pdf 2>/dev/null | head -5
 ```
 
-- If it exists and has files: show the first few filenames and confirm: "✓ Found that folder."
-- If empty or missing: warn — **"That path doesn't seem to exist on this machine. You can still proceed and update it later by re-running `/setup-preflight`."** — but do not block; store whatever they entered.
+- If PDFs are found: show the first few filenames and confirm: "✓ Found the PDF folder."
+- If the directory exists but has no PDFs: warn — "That folder exists but no PDF files were found. Make sure OneDrive has finished syncing."
+- If the path doesn't exist at all: warn — "That path wasn't found on this machine. Check that OneDrive is synced and the path is correct. You can update it later by re-running `/setup-preflight`." — do not block.
 
 Store as `PDF_PATH`.
 
