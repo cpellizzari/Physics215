@@ -470,6 +470,205 @@
       </div>
     </div>
 
+    <!-- ══════════════════════════════════════════
+         HELP TAB
+    ══════════════════════════════════════════ -->
+    <div class="tab-panel" id="tab-help">
+      <h3 style="margin-bottom:20px">System Guide</h3>
+
+      <!-- GRADING WORKFLOW -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">Grading Workflow</div>
+
+        <p style="font-size:0.9em;margin-bottom:12px">Grades flow through three states: <strong>suggested → saved → finalized</strong>. Students only see scores once finalized.</p>
+
+        <table style="width:100%;border-collapse:collapse;font-size:0.87em">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">Step</th>
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">How</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">1. Select assignment</td>
+              <td style="padding:8px 10px">Pick an assignment and section filter from the Grade tab dropdowns. Use <em>All sections (entire course)</em> to see everyone.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">2. Review scores</td>
+              <td style="padding:8px 10px">Each student card shows suggested scores (from the Claude analysis skill). Toggle each question: <span style="color:var(--green)">green = full credit</span>, <span style="color:#eab308">yellow = full credit with a concern flagged</span>, <span style="color:var(--red)">red = no credit</span>. Add feedback in the text field.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">3. Save</td>
+              <td style="padding:8px 10px">Click <strong>Save</strong> to write scores without publishing. Students cannot see saved-but-not-finalized scores. You can save and come back later.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">4. Finalize &amp; Publish</td>
+              <td style="padding:8px 10px">Click <strong>Finalize &amp; Publish to Students</strong> to lock all currently displayed scores and make them visible to students. Applies to all students currently shown — use <em>All sections</em> to finalize the whole course at once.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">5. Reopen a student</td>
+              <td style="padding:8px 10px">Click <strong>✎ Reopen</strong> on a finalized student card to un-publish their score, make edits, then re-finalize.</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 10px;font-weight:600">Grant an extension</td>
+              <td style="padding:8px 10px">Click <strong>📅 Grant Extension</strong> on any student card to set a custom due date. The student's assignment will remain open past the section deadline.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ROSTER & SECTIONS -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">Roster &amp; Sections</div>
+
+        <p style="font-size:0.9em;margin-bottom:12px">Roster management is in the <strong>Roster</strong> and <strong>Sections</strong> tabs (directors only).</p>
+
+        <table style="width:100%;border-collapse:collapse;font-size:0.87em">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">Task</th>
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">How</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Upload a roster</td>
+              <td style="padding:8px 10px">Prepare a CSV with columns <code>student_id</code>, <code>name</code>, <code>section</code>. Section format: <code>[M|T][1|3|5][A-D]</code> (e.g. <code>M1A</code>, <code>T3B</code>). Upload in the Roster tab — sections are created automatically.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Provision student accounts</td>
+              <td style="padding:8px 10px">After uploading, the Roster tab shows how many students lack login accounts. Click <strong>Provision Accounts</strong> to create them in bulk. Each student's email is <code>studentID@usafa.edu</code> and default password is their last 6 digits.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Move a student to a different section</td>
+              <td style="padding:8px 10px">Click <strong>Edit Section</strong> on the student's row in the Roster tab and pick the new section.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Remove a student</td>
+              <td style="padding:8px 10px">Click <strong>Remove</strong> on the student's row. This also deletes all their responses, scores, and extensions — use with caution.</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 10px;font-weight:600">Assign instructors to sections</td>
+              <td style="padding:8px 10px">Go to the <strong>Sections</strong> tab. Use the dropdown on each section card to assign an instructor. Instructors only see students in their assigned sections.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="alert alert-info" style="margin-top:14px;font-size:0.85em">
+          <strong>Section naming:</strong> M-day sections use the M-day due date; T-day sections use the T-day due date. Both must be set on the assignment if you have both day types in the course.
+        </div>
+      </div>
+
+      <!-- ASSIGNMENTS -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">Assignments</div>
+
+        <p style="font-size:0.9em;margin-bottom:12px">Assignments are managed in the <strong>Assignments</strong> tab (directors only). They are scoped to the currently selected course.</p>
+
+        <table style="width:100%;border-collapse:collapse;font-size:0.87em">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">Task</th>
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">How</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Create an assignment</td>
+              <td style="padding:8px 10px">Click <strong>+ New Assignment</strong>. Give it a short slug ID (e.g. <code>preflight-3</code>), a title, M-day and T-day due dates, and add questions. Each question has a point value and a type (text, multiple choice, etc.).</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Duplicate an assignment</td>
+              <td style="padding:8px 10px">Click <strong>Duplicate</strong> on an existing assignment. You will be prompted for a new ID. All questions are copied — edit dates and content as needed.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Publish / unpublish</td>
+              <td style="padding:8px 10px">Toggle <strong>Published</strong> on an assignment to make it visible to students. Unpublished assignments are only visible to instructors in the admin panel.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Set a reading link</td>
+              <td style="padding:8px 10px">Paste a URL into the <strong>Reading Link</strong> field. It appears as a button at the top of the student submission page.</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 10px;font-weight:600">Reference PDF &amp; pages</td>
+              <td style="padding:8px 10px">Used by the Claude analysis skill (<code>/preflight-analyze</code>) for RAG. Set to the textbook PDF filename and relevant page range (e.g. <code>45-52, 60</code>).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- INSTRUCTOR MANAGEMENT -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">Instructor Management</div>
+
+        <p style="font-size:0.9em;margin-bottom:12px">Add and remove instructors from the <strong>Instructors</strong> tab (directors only). Three role levels exist:</p>
+
+        <table style="width:100%;border-collapse:collapse;font-size:0.87em;margin-bottom:14px">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">Role</th>
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">Access</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px"><span style="background:#7c3aed;color:#fff;border-radius:4px;padding:2px 8px;font-size:0.8em;font-weight:600">System Admin</span></td>
+              <td style="padding:8px 10px">Full access to all courses (Physics 110 and 215). Can add/remove any instructor including other admins. Use sparingly.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px"><span style="background:#1d4ed8;color:#fff;border-radius:4px;padding:2px 8px;font-size:0.8em;font-weight:600">Course Director</span></td>
+              <td style="padding:8px 10px">Full access to one course — all tabs, all sections, finalize any grades, manage roster and assignments.</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 10px"><span style="background:#374151;color:#fff;border-radius:4px;padding:2px 8px;font-size:0.8em;font-weight:600">Instructor</span></td>
+              <td style="padding:8px 10px">Grade, Report, and Export tabs only. Sees only students in their assigned sections. Cannot finalize grades for sections not assigned to them.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table style="width:100%;border-collapse:collapse;font-size:0.87em">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">Task</th>
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">How</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Add an instructor</td>
+              <td style="padding:8px 10px">Fill in name, USAFA email, temporary password, and role in the Instructors tab. Click <strong>+ Add Instructor</strong>. They can change their password after first login using the <strong>Change Password</strong> button in the page header.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Assign an instructor to a section</td>
+              <td style="padding:8px 10px">Go to the <strong>Sections</strong> tab and use the dropdown on the section card. An instructor must be added first before they can be assigned.</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 10px;font-weight:600">Remove an instructor</td>
+              <td style="padding:8px 10px">Click <strong>Remove</strong> next to their name in the Instructors tab. This removes their course access but does not delete their login account or any grading history.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- CLAUDE SKILL -->
+      <div class="card">
+        <div class="card-title">Claude Analysis Skill (<code>/preflight-analyze</code>)</div>
+        <p style="font-size:0.9em;margin-bottom:10px">A Claude Code skill that reads student submissions, grades them against the textbook, writes suggested scores to the database, and generates a per-instructor misconception summary visible in the Report tab.</p>
+        <table style="width:100%;border-collapse:collapse;font-size:0.87em">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">Step</th>
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);font-weight:600">Details</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Setup (one-time)</td>
+              <td style="padding:8px 10px">Copy <code>.claude/skills/preflight-analyze/config.json.template</code> to <code>config.json</code> and fill in <code>supabase_url</code>, <code>supabase_service_key</code>, <code>textbook_base_path</code>, and <code>default_course_id</code>. Never commit this file.</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 10px;font-weight:600">Run</td>
+              <td style="padding:8px 10px">In Claude Code: <code>/preflight-analyze phys-215 preflight-2 M</code><br>Arguments: <code>[course_id] [assignment_id] [M|T]</code> — the day filter is optional.</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 10px;font-weight:600">Output</td>
+              <td style="padding:8px 10px">Scores written to the database as <em>unfinalized</em> suggestions. Review and adjust in the Grade tab, then finalize to publish to students. The analysis report appears in the Report tab under each assignment.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /tab-help -->
+
   </div><!-- /page-wide -->
 </div><!-- /screen-admin -->
 
@@ -644,6 +843,7 @@ function buildTabs() {
     { id: 'sections',     label: 'Sections',     directorOnly: true },
     { id: 'instructors',  label: 'Instructors',  directorOnly: true },
     { id: 'export',       label: 'Export',       always: true },
+    { id: 'help',         label: 'Help',         always: true },
   ];
   tabs.forEach(t => {
     if (t.directorOnly && !isDirectorForCurrent()) return;
@@ -666,6 +866,7 @@ function switchTab(id) {
   if (id === 'sections')     loadSections();
   if (id === 'instructors')  loadInstructorsTab();
   if (id === 'export')       initExportTab();
+  // help tab is static — no load function needed
 }
 
 // ══════════════════════════════════════════════════════
