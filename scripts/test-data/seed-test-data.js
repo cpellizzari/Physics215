@@ -7,8 +7,11 @@
 //   2. Upload phys215-test-roster.csv via admin panel
 //   3. Provision student accounts via admin Roster tab
 //
-// This script inserts fake responses + unfinalized scores for
-// preflight-1 and preflight-2 for all phys-215 students.
+// This script inserts fake responses + unfinalized scores for phys-215 students.
+// By default seeds preflight-1, preflight-2, and preflight-3.
+//
+// Pass assignment IDs as arguments to seed only those:
+//   node scripts/test-data/seed-test-data.js preflight-3
 //
 // Reads config from: ~/.claude/skills/preflight-analyze/config.json
 //   Required keys: supabase_url, supabase_service_key
@@ -57,9 +60,9 @@ async function dbGet(table, params = '') {
   return resp.json();
 }
 
-async function dbUpsert(table, rows) {
+async function dbUpsert(table, rows, onConflict = null) {
   if (!rows.length) return;
-  const url  = `${BASE_URL}/rest/v1/${table}`;
+  const url  = `${BASE_URL}/rest/v1/${table}${onConflict ? `?on_conflict=${onConflict}` : ''}`;
   const resp = await fetch(url, {
     method:  'POST',
     headers: { ...HEADERS, Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -114,6 +117,51 @@ const PF1_Q3_VARIANTS = [
     "They repel. The charged insulator would push the charges in the metal away, creating the same type of charge on the near surface of the metal, leading to repulsion.",
     "The metal object is neutral so it wouldn't feel any force — charged objects only attract or repel other charged objects, and since the metal has zero net charge, nothing happens.",
     "They repel because the insulator is charged and the metal object is a good conductor, so the same charge would build up on the surface and push it away.",
+  ],
+];
+
+// Preflight-3: vector Coulomb's law / superposition / electric fields
+const PF3_Q2 = [
+  // M1A
+  "Most interesting: how the vector form of Coulomb's law packs so much information into one equation — the unit vector r̂ gives direction automatically. What confused me was the sign convention: if both charges are positive the force is repulsive, but if I substitute the signs into the formula, how does the direction flip correctly?",
+  // M3A
+  "Interesting: electric field lines never cross, and their density tells you the field strength. Confusing: why field lines start on positive charges and end on negative ones — I get the convention but I'm not sure whether that's a physical reality or just a visual tool.",
+  // M1B
+  "The superposition principle was interesting — you can just add up forces from multiple charges as if each one acts alone. What confused me was how this principle is justified: does it always hold, or are there situations where it breaks down?",
+  // M3B
+  "Interesting: the 1/r² dependence means the force grows very large as two charges get extremely close. Confusing: is this really true all the way down to zero separation, or does something else take over at atomic scales?",
+  // M5A
+  "Most interesting was the distinction between the electric force on a charge and the electric field at a point in space — the field exists even when there's no test charge present. What confused me was why we define the field using a 'test charge' if the field is supposed to exist independently.",
+  // T1A
+  "I found the physical meaning of ε₀ confusing — I understand it appears in Coulomb's constant k = 1/(4πε₀), but I don't have a good intuition for what permittivity of free space actually represents physically. Interesting: that k ≈ 9×10⁹ Nm²/C² is so large, meaning electric forces between charges can be enormous.",
+  // T3A
+  "Interesting: you can map out the electric field of a charge distribution by computing the contribution from each infinitesimal element and integrating. Confusing: for a line of charge, the field at points not on the axis — I can follow the setup but the integral gets complicated quickly and I lose track of symmetry arguments.",
+  // T1B
+  "What confused me most was the difference between a 'source charge' and a 'test charge.' I understand the test charge is supposed to be small enough not to disturb the field, but I'm not clear on what 'small enough' means in practice. Interesting: that you can use a single positive test charge to probe the direction of the field anywhere in space.",
+  // T3B
+  "The pattern of electric field lines between two opposite charges was interesting — the field lines curve from positive to negative. What confused me was the field in the region directly between them: I couldn't tell from the picture alone whether the field is stronger or weaker there compared to far away.",
+  // T5A
+  "Most interesting: when two charges of the same sign are on a line, the forces they exert on each other are antiparallel — they push each other apart — but their forces on a third charge nearby could both point the same direction or in opposite directions depending on where the third charge is. Confusing: how you keep track of all the directions when more than two charges are involved.",
+];
+
+const PF3_Q3_VARIANTS = [
+  // full credit — three-step procedure, direction logic, explains why magnitudes can't be added
+  [
+    "Use Coulomb's law separately for each outer charge to find the force it exerts on the middle one. For the left charge: calculate the magnitude F = kq₁q₂/r² and determine the direction — repulsive if both have the same sign, attractive if opposite. Do the same for the right charge. Then add the two force vectors by choosing a positive direction (say, rightward), assigning a + or − sign to each force based on which way it points, and summing. You can't simply add magnitudes because force is a vector quantity — if one outer charge pushes right and the other pushes left, those contributions partially cancel. Adding magnitudes would overcount and give an answer that's too large.",
+    "Apply the superposition principle: treat each pair of charges independently as if the other charges don't exist. Step 1: use Coulomb's law to find the force on the middle charge from the left charge, including its direction along the line. Step 2: do the same for the right charge. Step 3: define a sign convention for direction (right = positive) and add the two forces algebraically. Forces must be treated as vectors because they have direction — two forces of equal magnitude pointing opposite ways cancel completely, while adding their magnitudes would give a nonzero answer. The vector approach captures this correctly; scalar addition does not.",
+    "Step 1: Compute the Coulomb force on the middle charge from the left charge alone. If both are the same sign, it points away from the left charge (rightward if the left charge is to the left); if opposite signs, it points toward the left charge. Step 2: Repeat for the right charge. Step 3: Assign algebraic signs based on direction and sum. The reason you must use vectors is that the two forces could oppose each other: for example, if both outer charges are identical and the middle is positive, one pushes right and the other pushes left, so they partially or fully cancel. Summing magnitudes would give the wrong (larger) answer.",
+  ],
+  // warn — correct general idea, vague on direction or why vectors
+  [
+    "You'd calculate the Coulomb force from each outer charge on the middle charge separately using F = kq₁q₂/r², then add the two forces together. You have to treat them as vectors because the forces could point in different directions — just adding the magnitudes wouldn't tell you which way the net force points or how much cancellation occurs.",
+    "Use superposition: find the force each outer charge exerts on the middle one independently, then combine. It has to be a vector sum because the two forces could act in opposite directions along the line, and ignoring that would give the wrong net force.",
+    "Calculate F from the left charge, calculate F from the right charge, then add them as vectors. You can't just add magnitudes because direction matters — the forces might be pointing toward each other or away, which changes the result significantly.",
+  ],
+  // zero — adds magnitudes, or completely missing direction reasoning, or blank
+  [
+    "You would use Coulomb's law to find the force from each outer charge, then add all the forces together to get the total. The net force is just the sum of all the individual forces acting on the middle charge.",
+    "Add the magnitudes of the individual Coulomb forces to find the net force on the middle charge. Since both outer charges exert forces at the same time, you combine them to get the total.",
+    "",
   ],
 ];
 
@@ -196,15 +244,19 @@ function getQualityTier(studentId, assignmentIdx) {
 function generateAnswers(assignmentId, sectionId, student) {
   const sIdx  = getSectionIdx(sectionId);
   const sid   = student.student_id;
-  const aIdx  = assignmentId === 'preflight-1' ? 0 : 1;
+  const aIdx  = assignmentId === 'preflight-1' ? 0
+              : assignmentId === 'preflight-2' ? 1
+              : 2;
 
   const q1  = pick(READING_TIMES, sid + aIdx);
-  const q2  = assignmentId === 'preflight-1' ? PF1_Q2[sIdx] : PF2_Q2[sIdx];
+  const q2  = assignmentId === 'preflight-1' ? PF1_Q2[sIdx]
+            : assignmentId === 'preflight-2' ? PF2_Q2[sIdx]
+            : PF3_Q2[sIdx];
   const tier = getQualityTier(sid, aIdx);
 
-  const q3variants = assignmentId === 'preflight-1'
-    ? PF1_Q3_VARIANTS[tier === 'full' ? 0 : tier === 'warn' ? 1 : 2]
-    : PF2_Q3_VARIANTS[tier === 'full' ? 0 : tier === 'warn' ? 1 : 2];
+  const q3variants = assignmentId === 'preflight-1' ? PF1_Q3_VARIANTS[tier === 'full' ? 0 : tier === 'warn' ? 1 : 2]
+                   : assignmentId === 'preflight-2' ? PF2_Q3_VARIANTS[tier === 'full' ? 0 : tier === 'warn' ? 1 : 2]
+                   : PF3_Q3_VARIANTS[tier === 'full' ? 0 : tier === 'warn' ? 1 : 2];
   const q3 = pick(q3variants, sid);
 
   return { q1, q2, q3 };
@@ -297,10 +349,27 @@ async function main() {
     (bySect[s.section_id] = bySect[s.section_id] || []).push(s);
   }
 
-  const assignments = ['preflight-1', 'preflight-2'];
+  // responsesOnly: true → insert responses but no scores (analysis skill runs later)
+  const ALL_ASSIGNMENTS = [
+    { id: 'preflight-1', responsesOnly: false },
+    { id: 'preflight-2', responsesOnly: false },
+    { id: 'preflight-3', responsesOnly: true  },
+  ];
 
-  for (const assignmentId of assignments) {
-    console.log(`\nGenerating responses for ${assignmentId}…`);
+  // Filter to specific assignments if passed as CLI args (e.g. node seed-test-data.js preflight-3)
+  const cliFilter = process.argv.slice(2);
+  const assignments = cliFilter.length
+    ? ALL_ASSIGNMENTS.filter(a => cliFilter.includes(a.id))
+    : ALL_ASSIGNMENTS;
+
+  if (!assignments.length) {
+    console.error(`No matching assignments for: ${cliFilter.join(', ')}`);
+    console.error(`Available: ${ALL_ASSIGNMENTS.map(a => a.id).join(', ')}`);
+    process.exit(1);
+  }
+
+  for (const { id: assignmentId, responsesOnly } of assignments) {
+    console.log(`\nGenerating responses for ${assignmentId}${responsesOnly ? ' (responses only — no scores)' : ''}…`);
     const responses = [];
     const scores    = [];
 
@@ -322,7 +391,9 @@ async function main() {
           submitted_at:  dt,
           updated_at:    dt,
         });
-        scores.push(generateScore(assignmentId, answers, student.student_id, sectionId));
+        if (!responsesOnly) {
+          scores.push(generateScore(assignmentId, answers, student.student_id, sectionId));
+        }
       }
     }
 
@@ -334,17 +405,19 @@ async function main() {
     const CHUNK = 500;
     console.log(`  Upserting responses…`);
     for (let i = 0; i < responses.length; i += CHUNK) {
-      await dbUpsert('responses', responses.slice(i, i + CHUNK));
+      await dbUpsert('responses', responses.slice(i, i + CHUNK), 'student_id,assignment_id');
       process.stdout.write(`    ${Math.min(i + CHUNK, responses.length)}/${responses.length}\r`);
     }
     console.log(`  ✓ ${responses.length} responses upserted`);
 
-    console.log(`  Upserting scores (unfinalized)…`);
-    for (let i = 0; i < scores.length; i += CHUNK) {
-      await dbUpsert('scores', scores.slice(i, i + CHUNK));
-      process.stdout.write(`    ${Math.min(i + CHUNK, scores.length)}/${scores.length}\r`);
+    if (!responsesOnly) {
+      console.log(`  Upserting scores (unfinalized)…`);
+      for (let i = 0; i < scores.length; i += CHUNK) {
+        await dbUpsert('scores', scores.slice(i, i + CHUNK), 'student_id,assignment_id');
+        process.stdout.write(`    ${Math.min(i + CHUNK, scores.length)}/${scores.length}\r`);
+      }
+      console.log(`  ✓ ${scores.length} scores upserted`);
     }
-    console.log(`  ✓ ${scores.length} scores upserted`);
   }
 
   console.log('\n✓ Done! Open admin.html → Grade tab to review suggested scores.');
