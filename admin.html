@@ -294,11 +294,11 @@
           <div style="display:flex; gap:16px; flex-wrap:wrap">
             <div class="field" style="flex:1; min-width:180px">
               <label>M-Day Due Date &amp; Time</label>
-              <input type="datetime-local" id="asgn-due-m-in">
+              <input type="datetime-local" id="asgn-due-m-in" onchange="defaultDueTime(this)">
             </div>
             <div class="field" style="flex:1; min-width:180px">
               <label>T-Day Due Date &amp; Time</label>
-              <input type="datetime-local" id="asgn-due-t-in">
+              <input type="datetime-local" id="asgn-due-t-in" onchange="defaultDueTime(this)">
             </div>
           </div>
           <div style="display:flex; gap:16px; flex-wrap:wrap">
@@ -1665,6 +1665,14 @@ function renderQuestionBuilder() {
 function setQuestionPoints(idx, value) {
   const v = parseFloat(value);
   questionItems[idx].points = isNaN(v) ? 1 : v;
+}
+
+// When a user first picks a date, the browser defaults the time to 00:00.
+// Snap it to 23:59 automatically — they can change it if needed.
+function defaultDueTime(input) {
+  if (input.value && input.value.endsWith('T00:00')) {
+    input.value = input.value.replace('T00:00', 'T23:59');
+  }
 }
 
 function previewAssignmentFigure(url) {
