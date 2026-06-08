@@ -34,16 +34,23 @@ A GitHub Pages + Supabase system for managing physics preflight assignments at U
 
 ## Section Naming Convention
 
-`[M|T][1|3|6][A-D]` — M = M-day, T = T-day; number = period; letter = section within period.
+`[M|T][1|3|5][A-D]` — M = M-day, T = T-day; number = period; letter = section within period.
 M-day sections use `due_date_m` on assignments; T-day sections use `due_date_t`.
 
 ## preflight-analyze Skill
 
 Analyzes student submissions for a given assignment, writes suggested scores to Supabase, and generates per-instructor misconception reports.
 
-**Setup** (one-time per instructor):
-1. `cp .claude/skills/preflight-analyze/config.json.template .claude/skills/preflight-analyze/config.json`
-2. Fill in `supabase_url`, `supabase_service_key` (get from course director), `textbook_base_path`, `default_course_id`
+**First time on a new machine? Run the setup wizard:**
+```
+/setup-preflight
+```
+This walks you through entering your Supabase credentials, writes your local config file,
+and verifies the connection. Takes about 2 minutes.
+
+**Manual setup** (if you prefer):
+1. `cp .claude/skills/preflight-analyze/config.json.template ~/.claude/skills/preflight-analyze/config.json`
+2. Fill in `supabase_url`, `supabase_service_key` (service_role key from Supabase dashboard → Project Settings → API), `textbook_base_path`, `default_course_id`
 3. The `config.json` is gitignored — never commit it
 
 **Usage**: `/preflight-analyze [course_id] [assignment_id] [M|T]`
