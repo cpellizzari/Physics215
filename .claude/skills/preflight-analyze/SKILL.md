@@ -4,18 +4,21 @@ description: Physics 215 preflight assignment analysis skill for USAFA. Use when
   user wants to analyze student submissions, generate per-section misconception reports,
   apply auto-grading, write suggested scores to Supabase, or says /preflight-analyze.
   Also triggers for: "analyze preflight", "grade submissions", "check who hasn't submitted",
-  "run analysis on assignment", "preflight analyze". Optional filter argument: "M" to
-  analyze only M-day sections, "T" to analyze only T-day sections.
+  "run analysis on assignment", "preflight analyze". This skill is run by a Course Director
+  or System Admin — not individual instructors. Run once for M-day sections, once for T-day.
+  Optional filter argument: "M" to analyze only M-day sections, "T" to analyze only T-day sections.
 ---
 
 # Physics 215 Preflight Analyzer
+
+This skill is run by a **Course Director or System Admin** — not individual instructors. A single run covers all sections for a given day (M-day or T-day). Results are stored per-instructor and are visible to each instructor in the Report tab.
 
 You are analyzing student submissions for a Physics 215 preflight assignment at USAFA. Your job is to:
 1. Fetch all student responses from Supabase (filtered by M-day or T-day sections if requested)
 2. Optionally read referenced textbook pages for grounding (RAG)
 3. Analyze responses question by question for physics misconceptions
 4. Write suggested scores back to Supabase (`is_finalized = false`)
-5. Print a structured per-section report in the conversation
+5. Print a structured per-instructor report in the conversation
 
 ---
 
@@ -99,7 +102,7 @@ If either field is null, skip this step (proceed without RAG context).
 ## Step 4 — Fetch the Roster
 
 ```
-GET {SUPA_URL}/rest/v1/students?select=student_id,name,section_id&order=student_id.asc
+GET {SUPA_URL}/rest/v1/students?select=student_id,name,section_id&order=name.asc
 Headers: apikey + Authorization
 ```
 
@@ -162,21 +165,23 @@ For each free-response question (`type: "free_response"`), collect all student a
 
 ### Grading Standard (LIBERAL)
 - **Full credit** by default for any answer showing genuine engagement — even partially correct, informal, or incomplete explanations
-- **Deduct only** when: (a) blank/empty, (b) completely off-topic/gibberish, or (c) a single word with no reasoning
+- **Deduct only** when: (a) blank/empty, (b) completely off-topic/gibberish/nonsense with no physics reasoning, or (c) a single word with no reasoning
+- **Wrong but relevant answers get `warn` (full credit + yellow flag), NOT `zero`** — if a student is clearly trying to engage with the right physics concept but reaches the wrong conclusion, they receive full credit with corrective feedback
 - Every deduction MUST have a written `feedback` string that explains what was missing and could serve as instructor feedback to the student
 
 ### Feedback Rules — MANDATORY
 
 **Feedback is required in ALL of the following cases, regardless of credit awarded:**
 
-| Situation | Score | Feedback required |
-|---|---|---|
-| Blank / empty | 0 | "No answer provided." |
-| Completely off-topic or gibberish | 0 | Explain what was expected |
-| Correct answer, wrong or circular mechanism | q.points | Corrective feedback (template below) |
-| Vague correct answer (no mechanism, e.g. "static electricity", "something with charges") | q.points | Corrective feedback (template below) |
-| Low-confidence hedge ("I think...", "Maybe...") with no explanation | q.points | Corrective feedback (template below) |
-| Fully correct with sound mechanism | q.points | `""` (empty — no feedback needed) |
+| Situation | Score | Status | Feedback required |
+|---|---|---|---|
+| Blank / empty | 0 | `zero` | "No answer provided." |
+| Completely off-topic or gibberish (no physics engagement) | 0 | `zero` | Explain what was expected |
+| **Wrong but relevant** — clearly engaging with the right physics topic but incorrect | q.points | `warn` | Corrective feedback (template below) |
+| Correct answer, wrong or circular mechanism | q.points | `warn` | Corrective feedback (template below) |
+| Vague correct answer (no mechanism, e.g. "static electricity", "something with charges") | q.points | `warn` | Corrective feedback (template below) |
+| Low-confidence hedge ("I think...", "Maybe...") with no explanation | q.points | `warn` | Corrective feedback (template below) |
+| Fully correct with sound mechanism | q.points | `full` | `""` (empty — no feedback needed) |
 
 **Corrective feedback template** (use exactly):
 > "While we gave you credit for your response, it may be incorrect. Here is the instructor answer: {expected_response}"
@@ -301,9 +306,11 @@ For each student who submitted (within filtered set), build a `question_scores` 
 ```
 
 **`status` rules:**
-- `"zero"` — score is 0 (no credit)
-- `"warn"` — score is full credit **and** feedback is non-empty (answer is wrong or vague; flagged for instructor review; displays as yellow in admin UI)
-- `"full"` — score is full credit **and** feedback is empty (answer is correct; displays as green in admin UI)
+- `"zero"` — score is 0; only for blank, completely off-topic, or gibberish answers
+- `"warn"` — score is full credit **and** feedback is non-empty; use for: wrong-but-relevant answers, correct conclusion with wrong mechanism, vague answers, hedging — displays as yellow in admin UI
+- `"full"` — score is full credit **and** feedback is empty; only for fully correct answers with sound reasoning — displays as green in admin UI
+
+**Key rule**: A student who is clearly trying to engage with the right physics concept — even if their answer is factually wrong — gets `warn`, NOT `zero`. Reserve `zero` for blank responses and answers that show no engagement with the topic at all.
 
 Always include `status` — the admin UI relies on it to show the three-state color toggle.
 

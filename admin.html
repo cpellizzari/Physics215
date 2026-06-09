@@ -238,6 +238,11 @@
         <button class="btn btn-primary" onclick="saveGrades()">💾 Save Progress</button>
         <button class="btn btn-danger" onclick="finalizeGrades()">✅ Finalize &amp; Publish to Students</button>
         <span id="grade-save-status" style="font-size:0.85em; color:var(--green)"></span>
+        <label class="toggle-label" style="margin-left:auto">
+          <input type="checkbox" id="flag-filter-toggle" onchange="applyFlagFilter()">
+          <span class="toggle-track"></span>
+          <span style="font-size:0.82em; color:var(--muted)">Show flagged only</span>
+        </label>
       </div>
 
       <div id="grade-container">
@@ -1103,7 +1108,7 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
            </div>`
         : '';
       html += `
-        <div class="grade-q-row">
+        <div class="grade-q-row" data-status="${status}">
           <div class="grade-q-label">Q${idx+1} · ${q.points} pts</div>
           <div class="grade-q-text">${esc(q.text)}</div>
           ${gradeQFigHtml}
@@ -1125,6 +1130,22 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
     card.innerHTML = html;
     container.appendChild(card);
   });
+
+  applyFlagFilter();
+}
+
+function applyFlagFilter() {
+  const on = document.getElementById('flag-filter-toggle')?.checked;
+  document.querySelectorAll('.grade-student-card').forEach(card => {
+    const rows = card.querySelectorAll('.grade-q-row');
+    let hasFlags = false;
+    rows.forEach(row => {
+      const s = row.dataset.status;
+      if (s === 'warn' || s === 'zero') hasFlags = true;
+      row.style.display = on && s === 'full' ? 'none' : '';
+    });
+    card.style.display = on && !hasFlags ? 'none' : '';
+  });
 }
 
 function toggleCredit(studentId, qId, maxPoints) {
@@ -1144,7 +1165,12 @@ function toggleCredit(studentId, qId, maxPoints) {
     // Remove hint line when no longer in warn state
     const hint = btn.closest('.grade-controls')?.querySelector('.warn-hint');
     if (hint) hint.style.display = gd.status === 'warn' ? '' : 'none';
+    // Keep row data-status in sync so applyFlagFilter works after toggling
+    const row = btn.closest('.grade-q-row');
+    if (row) row.dataset.status = gd.status;
   }
+
+  applyFlagFilter();
 
   // Update header total
   const qs       = gradeAssignment.questions || [];
@@ -1333,10 +1359,28 @@ async function loadReport() {
   }
 
   // ── Per-question cards ──
+  // Aggregate analysis summaries from all instructors whose sections are in view
+  // (supports both individual instructors and CD/Admin who ran the skill for all sections)
+  const sectionsInView = new Set((students || []).map(s => s.section_id));
+  const relevantQSummaries = {};
+  if (analysisReport?.by_instructor) {
+    Object.values(analysisReport.by_instructor).forEach(instrData => {
+      if ((instrData.sections || []).some(s => sectionsInView.has(s))) {
+        Object.entries(instrData.questions || {}).forEach(([qId, qData]) => {
+          if (qData.summary) {
+            if (!relevantQSummaries[qId]) relevantQSummaries[qId] = [];
+            relevantQSummaries[qId].push(qData.summary);
+          }
+        });
+      }
+    });
+  }
+
   qs.forEach((q, idx) => {
     const qAnswers   = reportAnswers[idx];
     const blankCount = qAnswers.filter(a => !a.answer.trim()).length;
-    const summary    = analysisReport?.by_instructor?.[instructor?.id]?.questions?.[q.id]?.summary || null;
+    const summaryParts = relevantQSummaries[q.id] || [];
+    const summary    = summaryParts.length ? summaryParts.join('\n') : null;
 
     html += `
       <div class="card" style="margin-bottom:20px">
@@ -2042,7 +2086,7 @@ async function exportBlackboard() {
   const { data: asgns } = await db.from('assignments').select('id, title')
     .eq('course_id', currentCourse).order('due_date_m', { ascending: true, nullsFirst: false });
   const exportSectionIds = isDirectorForCurrent() ? await getCourseAllSections() : mySections;
-  let studentQuery = db.from('students').select('student_id, name, section_id').order('student_id');
+  let studentQuery = db.from('students').select('student_id, name, section_id').order('name');
   if (exportSectionIds.length) studentQuery = studentQuery.in('section_id', exportSectionIds);
   const { data: students } = await studentQuery;
   if (!students?.length) { statusEl.textContent = 'No students found.'; return; }

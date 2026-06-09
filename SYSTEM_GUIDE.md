@@ -121,7 +121,7 @@ The student's assignment page will automatically use the extended date. The exte
 
 ## Running the Claude Analysis Skill (`/preflight-analyze`)
 
-The skill reads student submissions, checks them for physics misconceptions, writes suggested scores to Supabase, and prints a per-section report. Instructors run it locally on their own computer.
+The skill reads student submissions, checks them for physics misconceptions, writes suggested scores to Supabase, and prints a per-instructor report. **Only Course Directors and System Admins run this skill** — not individual instructors. A CD runs it once for all M-day sections and once for all T-day sections. Each instructor then sees their own section's results in the Report tab.
 
 ### One-time setup
 
@@ -160,29 +160,26 @@ Open `config.json` and fill in the values:
 
 **The `config.json` file is gitignored and will never be committed to the repo.**
 
-### Running the skill
+### Running the skill (Course Director / System Admin only)
 
-Open Claude Code in your terminal from the repo folder and type:
+Open Claude Code in your terminal from the repo folder and run it twice — once per day group:
 
 ```
-/preflight-analyze phys-215 preflight-2
+/preflight-analyze phys-215 preflight-2 M    ← all M-day sections
+/preflight-analyze phys-215 preflight-2 T    ← all T-day sections
 ```
 
-Optional filters:
-```
-/preflight-analyze phys-215 preflight-2 M    ← M-day sections only
-/preflight-analyze phys-215 preflight-2 T    ← T-day sections only
-```
+Each run:
+1. Fetches all student responses for that day's sections
+2. Reads the relevant textbook pages (if configured on the assignment)
+3. Grades numerical and multiple choice questions automatically
+4. Analyzes free-response answers for physics misconceptions
+5. Writes suggested scores to Supabase (`is_finalized = false`) for every student
+6. Prints a per-instructor breakdown in the terminal
 
-The skill will:
-1. Fetch all student responses for the assignment
-2. Read the relevant textbook pages (if configured on the assignment)
-3. Grade numerical and multiple choice questions automatically
-4. Analyze free-response answers for misconceptions
-5. Write suggested scores to Supabase (`is_finalized = false`)
-6. Print a full per-instructor report in the terminal
+Results are stored by instructor in the database. After the skill runs, each instructor logs into the admin panel, goes to the **Grade** tab, and reviews the suggested scores for their own sections. They click **Finalize & Publish** to make grades visible to students.
 
-Suggested scores appear highlighted in the admin **Grade** tab. Instructors review them and click **Finalize** to publish grades to students.
+**Grading policy**: wrong answers that show genuine engagement with the topic are marked yellow (full credit, flagged for review) — not zero. Only blank or completely off-topic responses receive zero credit. Instructors should review all yellow items and decide whether to confirm full credit, downgrade to no credit, or adjust feedback.
 
 ---
 
