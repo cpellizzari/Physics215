@@ -998,8 +998,9 @@ async function loadGradingView() {
   } else {
     sectionIds = mySections; // "my sections" = only sections you are assigned to as instructor
   }
-  const { data: students } = await db.from('students').select('student_id, name, section_id')
-    .in('section_id', sectionIds.length ? sectionIds : ['__none__']).order('name');
+  const { data: studentsRaw } = await db.from('students').select('student_id, name, section_id')
+    .in('section_id', sectionIds.length ? sectionIds : ['__none__']);
+  const students = (studentsRaw || []).sort((a, b) => lastFirst(a.name).localeCompare(lastFirst(b.name)));
   if (!students?.length) {
     container.innerHTML = '<div class="alert alert-warn">No students found for your sections.</div>';
     actionsEl.style.display = 'none'; return;
@@ -1069,23 +1070,23 @@ function renderGradeCards(asgn, students, responseMap, scoreMap) {
 
     let html = `
       <div class="grade-student-header">
-        <span class="grade-student-name">${esc(st.name)}</span>
+        <span class="grade-student-name">${esc(lastFirst(st.name))}</span>
         <span class="grade-student-section">Section ${esc(st.section_id)}</span>
         ${finalized
           ? `<span class="grade-student-total" style="background:rgba(255,255,255,0.15)">✅ Finalized</span>
              <button class="btn btn-secondary btn-sm" style="font-size:0.75em;padding:3px 10px;margin-left:6px;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff"
-               onclick="reopenStudent(${st.student_id},'${esc(st.name)}')">✎ Reopen</button>`
+               onclick="reopenStudent(${st.student_id},'${esc(lastFirst(st.name))}')">✎ Reopen</button>`
           : ''}
         ${extensionMap[st.student_id]
           ? `<span style="font-size:0.75em;padding:3px 8px;border-radius:4px;background:rgba(234,179,8,0.25);color:#fef08a;margin-left:6px">
                📅 Extended: ${new Date(extensionMap[st.student_id]).toLocaleDateString()}
              </span>
              <button class="btn btn-secondary btn-sm" style="font-size:0.75em;padding:3px 8px;margin-left:4px;background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#fff"
-               onclick="openExtensionModal(${st.student_id},'${esc(st.name)}')">✎ Edit</button>
+               onclick="openExtensionModal(${st.student_id},'${esc(lastFirst(st.name))}')">✎ Edit</button>
              <button class="btn btn-secondary btn-sm" style="font-size:0.75em;padding:3px 8px;margin-left:2px;background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.4);color:#fca5a5"
-               onclick="removeExtension(${st.student_id},'${esc(st.name)}')">✕ Remove</button>`
+               onclick="removeExtension(${st.student_id},'${esc(lastFirst(st.name))}')">✕ Remove</button>`
           : `<button class="btn btn-secondary btn-sm" style="font-size:0.75em;padding:3px 10px;margin-left:6px;background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#fff"
-               onclick="openExtensionModal(${st.student_id},'${esc(st.name)}')">📅 Grant Extension</button>`}
+               onclick="openExtensionModal(${st.student_id},'${esc(lastFirst(st.name))}')">📅 Grant Extension</button>`}
         <span class="grade-student-total" id="stotal-${st.student_id}">${total.toFixed(2)} / ${maxTotal.toFixed(2)} pts</span>
       </div>`;
 
@@ -1293,9 +1294,10 @@ async function loadReport() {
   } else {
     sectionIds = mySections; // "my sections" = only sections you are assigned to as instructor
   }
-  const { data: students } = await db.from('students').select('student_id, name, section_id')
-    .in('section_id', sectionIds.length ? sectionIds : ['__none__']).order('name');
-  const studentIds = (students || []).map(s => s.student_id);
+  const { data: studentsRaw2 } = await db.from('students').select('student_id, name, section_id')
+    .in('section_id', sectionIds.length ? sectionIds : ['__none__']);
+  const students = (studentsRaw2 || []).sort((a, b) => lastFirst(a.name).localeCompare(lastFirst(b.name)));
+  const studentIds = students.map(s => s.student_id);
 
   const [{ data: responses }, { data: scores }] = await Promise.all([
     db.from('responses').select('student_id, answers').eq('assignment_id', asgnId).in('student_id', studentIds),
@@ -1315,7 +1317,7 @@ async function loadReport() {
   reportAnswers   = {};
   qs.forEach((q, idx) => {
     reportAnswers[idx] = submitted.map(s => ({
-      name:    s.name,
+      name:    lastFirst(s.name),
       section: s.section_id,
       answer:  String(responseMap[s.student_id]?.[q.id] ?? '')
     }));
@@ -1351,7 +1353,7 @@ async function loadReport() {
         <div class="card-title" style="color:var(--red); margin-bottom:12px">Did Not Submit (${missing.length})</div>
         <div class="table-wrap"><table>
           <thead><tr><th>Name</th><th>Section</th><th>Student ID</th></tr></thead>
-          <tbody>${missing.map(s => `<tr><td>${esc(s.name)}</td><td>${esc(s.section_id)}</td><td>${s.student_id}</td></tr>`).join('')}</tbody>
+          <tbody>${missing.map(s => `<tr><td>${esc(lastFirst(s.name))}</td><td>${esc(s.section_id)}</td><td>${s.student_id}</td></tr>`).join('')}</tbody>
         </table></div>
       </div>`;
   } else {
@@ -2311,6 +2313,15 @@ async function changeInstructorRole(instructorId, name, selectEl) {
 function esc(str) {
   return String(str ?? '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Convert "First Last" or "First Middle Last" → "Last, First Middle"
+function lastFirst(name) {
+  const parts = String(name ?? '').trim().split(/\s+/);
+  if (parts.length < 2) return name;
+  const last  = parts[parts.length - 1];
+  const first = parts.slice(0, parts.length - 1).join(' ');
+  return last + ', ' + first;
 }
 
 // ══════════════════════════════════════════════════════
