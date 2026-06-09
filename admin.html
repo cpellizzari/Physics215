@@ -1833,13 +1833,15 @@ async function togglePublish(id, current) {
 // ══════════════════════════════════════════════════════
 async function loadRosterTable() {
   const [{ data: allStudents }, { data: sections }] = await Promise.all([
-    db.from('students').select('student_id, name, section_id, auth_user_id').order('section_id').order('name'),
+    db.from('students').select('student_id, name, section_id, auth_user_id').order('section_id'),
     db.from('sections').select('id').eq('course_id', currentCourse).order('id')
   ]);
 
   const sectionIds = (sections || []).map(s => s.id);
   const sectionSet = new Set(sectionIds);
-  const students = (allStudents || []).filter(s => sectionSet.has(s.section_id));
+  const students = (allStudents || [])
+    .filter(s => sectionSet.has(s.section_id))
+    .sort((a, b) => a.section_id.localeCompare(b.section_id) || lastFirst(a.name).localeCompare(lastFirst(b.name)));
   window._rosterSections = sectionIds; // used by the Edit Section modal
 
   // Update provision card status
@@ -1869,12 +1871,12 @@ async function loadRosterTable() {
     <thead><tr><th>Student ID</th><th>Name</th><th>Section</th><th style="text-align:center">Auth</th><th></th></tr></thead>
     <tbody>${students.map(s => `<tr>
       <td>${s.student_id}</td>
-      <td>${esc(s.name)}</td>
+      <td>${esc(lastFirst(s.name))}</td>
       <td>${esc(s.section_id)}</td>
       <td style="text-align:center;font-size:0.82em;color:${s.auth_user_id ? '#16a34a' : 'var(--muted)'}">${s.auth_user_id ? '✓' : '—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-secondary btn-sm" onclick="openEditSectionModal(${s.student_id}, '${esc(s.name).replace(/'/g,"\\'")}', '${s.section_id}')">Edit Section</button>
-        <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;margin-left:4px" onclick="removeStudent(${s.student_id}, '${esc(s.name).replace(/'/g,"\\'")}')">Remove</button>
+        <button class="btn btn-secondary btn-sm" onclick="openEditSectionModal(${s.student_id}, '${esc(lastFirst(s.name)).replace(/'/g,"\\'")}', '${s.section_id}')">Edit Section</button>
+        <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;margin-left:4px" onclick="removeStudent(${s.student_id}, '${esc(lastFirst(s.name)).replace(/'/g,"\\'")}')">Remove</button>
       </td>
     </tr>`).join('')}
     </tbody>
