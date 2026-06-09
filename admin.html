@@ -2169,11 +2169,16 @@ async function loadInstructorsTab() {
         ${rows.map(row => {
           const isSelf = row.instructor_id === currentUser.id;
           const rs = roleStyle[row.role] || roleStyle.instructor;
+          const roleCell = row.role === 'system_admin' || isSelf
+            ? `<span style="font-size:0.8em;padding:2px 8px;border-radius:4px;background:${rs.bg};color:${rs.color}">${rs.label}</span>`
+            : `<select style="font-size:0.82em;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);cursor:pointer"
+                onchange="changeInstructorRole('${row.instructor_id}','${esc(row.name)}',this)">
+                <option value="instructor"${row.role === 'instructor' ? ' selected' : ''}>Instructor</option>
+                <option value="director"${row.role === 'director'   ? ' selected' : ''}>Course Director</option>
+              </select>`;
           return `<tr style="border-bottom:1px solid var(--border)">
             <td style="padding:10px 4px;font-weight:600">${esc(row.name)}${isSelf ? ' <span style="font-size:0.75em;color:var(--muted)">(you)</span>' : ''}</td>
-            <td style="padding:10px 4px">
-              <span style="font-size:0.8em;padding:2px 8px;border-radius:4px;background:${rs.bg};color:${rs.color}">${rs.label}</span>
-            </td>
+            <td style="padding:10px 4px">${roleCell}</td>
             <td style="padding:10px 4px;text-align:right">
               ${isSelf ? '' : `<button class="btn btn-secondary btn-sm" style="font-size:0.78em;color:#f87171;border-color:rgba(248,113,113,0.4)"
                 onclick="removeInstructor('${row.instructor_id}','${esc(row.name)}','${row.role}')">Remove</button>`}
@@ -2227,6 +2232,34 @@ async function removeInstructor(instructorId, name, role) {
   });
 
   if (error || data?.error) { alert(`Failed to remove: ${data?.error || error.message}`); return; }
+  loadInstructorsTab();
+}
+
+async function changeInstructorRole(instructorId, name, selectEl) {
+  const newRole    = selectEl.value;
+  const prevRole   = newRole === 'director' ? 'instructor' : 'director';
+  const roleLabel  = newRole === 'director' ? 'Course Director' : 'Instructor';
+
+  if (!confirm(`Change ${name} to ${roleLabel}?`)) {
+    selectEl.value = prevRole; // revert the dropdown
+    return;
+  }
+
+  selectEl.disabled = true;
+  const { error } = await db
+    .from('instructor_course_access')
+    .update({ role: newRole })
+    .eq('instructor_id', instructorId)
+    .eq('course_id', currentCourse);
+
+  if (error) {
+    alert(`Failed to update role: ${error.message}`);
+    selectEl.value = prevRole;
+    selectEl.disabled = false;
+    return;
+  }
+
+  // Reload the list so the row reflects the new role style
   loadInstructorsTab();
 }
 
