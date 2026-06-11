@@ -2,7 +2,7 @@
 -- ============================================================
 -- PURELY ADDITIVE. Creates two NEW tables and their policies only.
 -- Does NOT alter, drop, or modify any existing table, column, policy, or row.
--- References existing objects read-only: students, courses, instructors,
+-- References existing objects read-only: students, instructors,
 -- instructor_course_access, the update_updated_at() trigger fn, auth.uid().
 --
 -- Run in the Supabase SQL Editor (Project > SQL Editor > New Query).
@@ -18,7 +18,7 @@
 -- ============================================================
 CREATE TABLE IF NOT EXISTS interactions (
   id            TEXT PRIMARY KEY,                                   -- slug, e.g. 'lesson-02-charge'
-  course_id     TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  course_id     TEXT NOT NULL,                                      -- 'phys-215' | 'phys-110' (no courses table exists to FK)
   title         TEXT NOT NULL,
   description   TEXT,
   artifact_url  TEXT,                                              -- claude.ai artifact link students launch
