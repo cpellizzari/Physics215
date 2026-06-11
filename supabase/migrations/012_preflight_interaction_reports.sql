@@ -10,6 +10,20 @@
 
 
 -- ============================================================
+-- Self-contained updated_at trigger function.
+-- Uniquely named so it neither depends on nor overwrites any existing
+-- function (the live DB's update_updated_at() may be absent/renamed).
+-- ============================================================
+CREATE OR REPLACE FUNCTION pir_set_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+
+-- ============================================================
 -- INTERACTIONS
 -- A "lesson interaction" = a Claude artifact a student works through.
 -- id is the stable slug the artifact embeds in its submit link (e.g.
@@ -29,7 +43,7 @@ CREATE TABLE IF NOT EXISTS interactions (
 
 CREATE OR REPLACE TRIGGER interactions_updated_at
   BEFORE UPDATE ON interactions
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION pir_set_updated_at();
 
 CREATE INDEX IF NOT EXISTS interactions_course_idx ON interactions (course_id);
 
@@ -61,7 +75,7 @@ CREATE TABLE IF NOT EXISTS preflight_interaction_reports (
 
 CREATE OR REPLACE TRIGGER preflight_interaction_reports_updated_at
   BEFORE UPDATE ON preflight_interaction_reports
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION pir_set_updated_at();
 
 CREATE INDEX IF NOT EXISTS pir_interaction_idx ON preflight_interaction_reports (interaction_id);
 
@@ -168,13 +182,15 @@ CREATE POLICY "pir: student reads own"
   );
 
 -- Instructors read reports for students in their own sections.
+-- (is_instructor()/my_sections() inlined to avoid depending on helper fns.)
 CREATE POLICY "pir: instructor reads section"
   ON preflight_interaction_reports FOR SELECT
   USING (
-    is_instructor()
+    EXISTS (SELECT 1 FROM instructors WHERE id = auth.uid())
     AND student_id IN (
-      SELECT s.student_id FROM students s
-      WHERE s.section_id IN (SELECT section_id FROM my_sections())
+      SELECT st.student_id FROM students st
+      JOIN sections sec ON sec.id = st.section_id
+      WHERE sec.instructor_id = auth.uid()
     )
   );
 
