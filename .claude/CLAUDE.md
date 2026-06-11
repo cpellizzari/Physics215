@@ -9,6 +9,14 @@ A GitHub Pages + Supabase system for managing physics preflight assignments at U
 - **Auth**: Supabase Auth for both instructors (email/password) and students (cadetID@usafa.edu / last-6-digits default password)
 - **Analysis**: `/preflight-analyze` Claude Code skill (see `.claude/skills/preflight-analyze/`)
 
+## Hosting & Infrastructure
+
+- **GitHub Pages**: `https://dfpm-physics.github.io/Core_Preflights/`
+  - phys-215 student URL: add `?course=phys-215`; phys-110: `?course=phys-110`
+- **GitHub repo**: `https://github.com/dfpm-physics/Core_Preflights.git` (org: `dfpm-physics`, branch: `main`)
+- **Supabase**: project `shzvpmlnqfmzfmuxkowi` — URL `https://shzvpmlnqfmzfmuxkowi.supabase.co`
+  - Free tier **pauses after 1 week of inactivity** — unpause in the Supabase dashboard at the start of each semester
+
 ## Key Files
 
 | File | Purpose |
@@ -37,6 +45,57 @@ A GitHub Pages + Supabase system for managing physics preflight assignments at U
 | `scores` | Graded scores with `question_scores` JSONB and `is_finalized` flag |
 | `interactions` | Lesson interactions (Claude artifacts); `id` is a slug like `lesson-02-charge`; has `artifact_url`, `is_published` |
 | `preflight_interaction_reports` | Student reports from interactions; Markdown blob, unique on `(student_id, interaction_id)` |
+
+## Roles
+
+Three tiers, enforced in `admin.html` via `isDirectorForCurrent()`:
+
+| Role | Condition | Access |
+|---|---|---|
+| **System Admin** | `instructors.is_global_admin = true` | Full access to all courses |
+| **Course Director** | `instructor_course_access.role = 'director'` | Full access to one course (Assignments, Roster, Sections, Instructors tabs) |
+| **Instructor** | `instructor_course_access.role = 'instructor'` | Grades own assigned sections only |
+
+`isDirectorForCurrent()` returns true if `is_global_admin` OR `role = 'director'` for `currentCourse`.
+"— all my sections —" filter in Grade/Report tabs shows **only sections personally assigned** to the logged-in instructor; admins/directors with no assigned sections must use "All sections" to see students.
+
+## JSONB Structures
+
+**`scores.question_scores`** — written by `/preflight-analyze`, read by Grade tab:
+```json
+{
+  "q1": { "score": 5, "max": 5, "feedback": "",                          "status": "full" },
+  "q2": { "score": 5, "max": 5, "feedback": "While we gave you credit…", "status": "warn" },
+  "q3": { "score": 0, "max": 5, "feedback": "No answer provided.",        "status": "zero" }
+}
+```
+`status` drives the 3-state color toggle: `"full"` = green, `"warn"` = yellow (full credit but flagged), `"zero"` = red.
+
+**`assignments.analysis_report`** — written by `/preflight-analyze`, read by Report tab:
+```json
+{
+  "generated_at": "ISO timestamp",
+  "day_filter": "M",
+  "by_instructor": {
+    "{instructor_uuid}": {
+      "instructor_name": "…",
+      "sections": ["M1A", "M1B"],
+      "questions": { "q1": { "summary": "bullet one\nbullet two\nbullet three" } }
+    }
+  }
+}
+```
+`summary` is a `\n`-joined string of bullet text — one bullet per line, no leading `•` or `-`. The Report tab adds list styling. Running M and T separately merges cleanly — each run PATCHes only its own instructor entries and preserves the other day's entries.
+
+## Edge Functions
+
+Deployed to Supabase (`supabase/functions/`). All verify the caller's JWT and authorization level. All return HTTP 200 with `{ success: true }` or `{ error: "…" }` (avoids `FunctionsHttpError` on non-2xx).
+
+| Function | Purpose |
+|---|---|
+| `create-instructor` | Creates Supabase Auth user + `instructors` row + `instructor_course_access` row; handles all three roles; rolls back on partial failure |
+| `remove-instructor` | Removes course access or clears `is_global_admin`; only SAs can remove other SAs |
+| `provision-students` | Bulk-creates Supabase Auth accounts for all students in a course where `auth_user_id IS NULL`; email = `studentId@usafa.edu`, password = last 6 digits of ID; runs serially; continues on individual failures; returns `{ success, count, errors }` |
 
 ## Section Naming Convention
 
@@ -107,9 +166,47 @@ See `textbook-pdfs/README.md` for full instructions.
 
 Example: `/preflight-analyze phys-215 preflight-2 M`
 
+## Known Misconception Patterns (for /preflight-analyze)
+
+Use these when writing tailored yellow (`warn`) feedback. Each pattern includes the specific correction to give the student.
+
+### Preflight-1 — Electrostatics (charged insulator near neutral conductor)
+*Reference: OpenStax Vol. 2 §5.2, Figures 5.10–5.11*
+
+| Error | What the student says | Correct it by saying |
+|---|---|---|
+| `repel/wrong-direction` | Conductor is repelled, or electrons move *away* from insulator | Near face gets opposite charge (electrons toward + insulator) → net attraction |
+| `same-charge-near-face` | Near face acquires same charge as insulator | Free electrons in conductor move *toward* + insulator → near face is negative |
+| `shielding` | "Conductor shields the field" explains the force | Interior is shielded; external force on the conductor still exists via polarization |
+| `neutral=no-force` | "Neutral → no force" (misapplied Coulomb's law) | Coulomb's law is for fixed point charges; conductor polarizes → charges redistribute |
+| `forces-cancel` | Attractive and repulsive forces on conductor cancel | They don't cancel: near face is closer → net attraction wins |
+| `attract-incomplete` | Correctly says "attract" but gives only the near-face argument | Add: far face simultaneously acquires like charge; near face wins by distance |
+
+### Preflight-2 — Polarizers (two linear polarizers in sequence)
+*Reference: OpenStax Vol. 3 §1.7, Malus's Law I = I₀cos²θ*
+
+| Error | What the student says | Correct it by saying |
+|---|---|---|
+| `wavelength-confusion` | Polarizers filter colors/wavelengths | Polarizers filter oscillation orientation, not wavelength; introduce Malus's Law |
+| `reflection-losses` | Light is reflected at each polarizer | Polarizers selectively *absorb* the perpendicular component; not reflection |
+| `each-halves` | Each polarizer halves intensity (fixed fraction, angle-independent) | First polarizer halves unpolarized light; second depends on angle: I = I₀cos²θ |
+| `correct-missing-malus` | Correct mechanism but no formula | Add I = I₀cos²θ; intensity depends on cos² of angle between polarizer axes |
+| `vague-absorption` | "Light is absorbed" with no angle dependence | Correct mechanism, but the angle between axes is the key variable |
+
+### Preflight-3 — Three-charge superposition (Coulomb force on middle charge)
+*Reference: OpenStax Vol. 2 §5.3, Example 5.2*
+
+| Error | What the student says | Correct it by saying |
+|---|---|---|
+| `scalar-sum` | Adds force magnitudes without directions | Forces are vectors — must specify direction (sign) for each, then sum algebraically |
+| `ambiguous-direction` | Mentions two forces but doesn't say which direction each acts | Force from left charge points right (+x), force from right charge points left (−x); net = algebraic sum |
+| *(upgrade to green)* | Explicitly says "as vectors" or "vector sum" AND gives direction reasoning | Promote to `full` credit with empty feedback |
+
 ## Important Notes
 
 - The anon key in `js/config.js` is protected by Supabase RLS — safe in a public repo
 - The service key in `config.json` bypasses RLS — never commit it
 - Scores are always written with `is_finalized: false`; instructors finalize in the Grade tab
 - 3-state scoring: `full` (green), `warn` (yellow = full credit but wrong/vague), `zero` (red)
+- **Always update `CHANGELOG.md`** when shipping any feature, fix, or documentation change — include date (YYYY-MM-DD), your name, and what/why. For Claude-authored changes, attribute to the instructor who requested it (e.g. "Casey Pellizzari via Claude").
+- **Supabase free tier pauses after 1 week of inactivity** — unpause at the start of each semester via the Supabase dashboard (Project Settings → General → Restore project)
