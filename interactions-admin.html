@@ -47,6 +47,10 @@
   .report-render th, .report-render td { border: 1px solid #cbd5e1; padding: 7px 9px; text-align: left; vertical-align: top; }
   .report-render th { background: #f1f5f9; }
   .report-render code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  /* Restore list indentation stripped by the global * { padding:0 } reset */
+  .report-render ul, .report-render ol { margin: 0.6em 0; padding-left: 1.6em; }
+  .report-render li { margin: 0.25em 0; }
+  .report-render p { margin: 0.6em 0; }
 
   .submission-card { border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; background: #fafbfc; }
   .submission-meta { font-size: 0.82em; color: var(--muted); margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
@@ -155,7 +159,18 @@
       <h3 id="subs-title">Submissions</h3>
       <button class="modal-close" onclick="closeModal('subs-modal')" aria-label="Close">&times;</button>
     </div>
-    <div id="subs-body"><div style="color:var(--muted)">Loading…</div></div>
+    <div id="subs-status" style="color:var(--muted); font-size:0.85em; margin-bottom:14px">Loading…</div>
+    <div id="subs-controls" style="display:none; gap:14px; flex-wrap:wrap; margin-bottom:18px">
+      <div style="flex:1; min-width:150px">
+        <label>Section</label>
+        <select id="subs-section"></select>
+      </div>
+      <div style="flex:1; min-width:220px">
+        <label>Student</label>
+        <select id="subs-student"></select>
+      </div>
+    </div>
+    <div id="subs-report"></div>
   </div>
 </div>
 
@@ -385,54 +400,94 @@ async function removeInteraction(id, title) {
 }
 
 // ── Submissions ──
+// Scalable for large classes: load only a lightweight roster (who submitted,
+// no report text). The full report is fetched only when a student is picked.
+let subsInteractionId = null;
+let subsRoster = [];   // [{ student_id, name, section_id, updated_at }]
+
 async function openSubmissions(id, title) {
+  subsInteractionId = id;
   document.getElementById('subs-title').textContent = `Submissions — ${title}`;
-  const body = document.getElementById('subs-body');
-  body.innerHTML = '<div style="color:var(--muted)">Loading…</div>';
+  const status   = document.getElementById('subs-status');
+  const controls = document.getElementById('subs-controls');
+  const report   = document.getElementById('subs-report');
+  status.textContent = 'Loading…';
+  controls.style.display = 'none';
+  report.innerHTML = '';
   document.getElementById('subs-modal').classList.add('open');
 
-  // RLS scopes rows: managers/directors see all; instructors see their sections.
-  // Two-step fetch (reports, then students) instead of PostgREST embedding,
-  // which can fail if the schema cache hasn't picked up the new foreign key.
+  // 1) Who submitted (no report_markdown — keeps this light for 1000 students).
   const { data: reps, error } = await db.from('preflight_interaction_reports')
-    .select('student_id, report_markdown, created_at, updated_at')
+    .select('student_id, updated_at')
     .eq('interaction_id', id);
+  if (error) { status.textContent = ''; report.innerHTML = `<div class="alert alert-error">Could not load: ${esc(error.message)}</div>`; return; }
+  if (!reps?.length) { status.textContent = 'No submissions yet.'; return; }
 
-  if (error) { body.innerHTML = `<div class="alert alert-error">Could not load: ${esc(error.message)}</div>`; return; }
-  if (!reps?.length) { body.innerHTML = '<div style="color:var(--muted)">No submissions yet.</div>'; return; }
-
-  // Attach each report's student record.
+  // 2) Names/sections for those students.
   const sids = [...new Set(reps.map(r => r.student_id))];
   const { data: studs } = await db.from('students')
     .select('student_id, name, section_id').in('student_id', sids);
   const smap = {};
   (studs || []).forEach(s => smap[s.student_id] = s);
-  reps.forEach(r => r._student = smap[r.student_id] || {});
+  subsRoster = reps.map(r => ({
+    student_id: r.student_id,
+    name:       smap[r.student_id]?.name || ('Student ' + r.student_id),
+    section_id: smap[r.student_id]?.section_id || '',
+    updated_at: r.updated_at
+  }));
 
-  // Sort by section then student name.
-  reps.sort((a, b) => {
-    const sa = a._student.section_id || '', sb = b._student.section_id || '';
-    if (sa !== sb) return sa.localeCompare(sb);
-    return (a._student.name || '').localeCompare(b._student.name || '');
-  });
+  // 3) Section dropdown (distinct, sorted). Student + report stay blank until chosen.
+  const sections = [...new Set(subsRoster.map(r => r.section_id).filter(Boolean))].sort();
+  const secSel = document.getElementById('subs-section');
+  secSel.innerHTML = '<option value="">— Select section —</option>' +
+    sections.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  document.getElementById('subs-student').innerHTML = '<option value="">— Select section first —</option>';
 
-  body.innerHTML = `<div style="font-size:0.85em; color:var(--muted); margin-bottom:14px">${reps.length} submission${reps.length !== 1 ? 's' : ''}</div>`;
-  reps.forEach(r => {
-    const when = r.updated_at ? new Date(r.updated_at).toLocaleString() : '';
-    const card = document.createElement('div');
-    card.className = 'submission-card';
-    // Render the stored Markdown report — sanitized before it touches innerHTML.
-    const rendered = DOMPurify.sanitize(marked.parse(r.report_markdown || ''));
-    card.innerHTML = `
+  status.textContent = `${reps.length} submission${reps.length !== 1 ? 's' : ''} across ${sections.length} section${sections.length !== 1 ? 's' : ''}. Pick a section and student to view a report.`;
+  controls.style.display = 'flex';
+}
+
+// Section chosen → fill the student dropdown, clear the report.
+function onSectionChange() {
+  const sec = document.getElementById('subs-section').value;
+  const studSel = document.getElementById('subs-student');
+  document.getElementById('subs-report').innerHTML = '';
+  if (!sec) { studSel.innerHTML = '<option value="">— Select section first —</option>'; return; }
+  const list = subsRoster.filter(r => r.section_id === sec)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  studSel.innerHTML = '<option value="">— Select student —</option>' +
+    list.map(r => `<option value="${r.student_id}">${esc(r.name)}</option>`).join('');
+}
+
+// Student chosen → fetch and render that one report.
+async function onStudentChange() {
+  const sid = document.getElementById('subs-student').value;
+  const report = document.getElementById('subs-report');
+  if (!sid) { report.innerHTML = ''; return; }
+  report.innerHTML = '<div style="color:var(--muted)">Loading report…</div>';
+
+  const { data, error } = await db.from('preflight_interaction_reports')
+    .select('report_markdown, updated_at')
+    .eq('interaction_id', subsInteractionId).eq('student_id', sid).single();
+  if (error || !data) { report.innerHTML = '<div class="alert alert-error">Could not load this report.</div>'; return; }
+
+  const who = subsRoster.find(r => String(r.student_id) === String(sid)) || {};
+  const when = data.updated_at ? new Date(data.updated_at).toLocaleString() : '';
+  const rendered = DOMPurify.sanitize(marked.parse(data.report_markdown || ''));
+  report.innerHTML = `
+    <div class="submission-card">
       <div class="submission-meta">
-        <strong>${esc(r._student.name || ('Student ' + r.student_id))}</strong>
-        &nbsp;·&nbsp; Section ${esc(r._student.section_id || '—')}
+        <strong>${esc(who.name || ('Student ' + sid))}</strong>
+        &nbsp;·&nbsp; Section ${esc(who.section_id || '—')}
         &nbsp;·&nbsp; ${esc(when)}
       </div>
-      <div class="report-render">${rendered}</div>`;
-    body.appendChild(card);
-  });
+      <div class="report-render">${rendered}</div>
+    </div>`;
 }
+
+// Submission picker dropdowns.
+document.getElementById('subs-section').addEventListener('change', onSectionChange);
+document.getElementById('subs-student').addEventListener('change', onStudentChange);
 
 // Close a modal when clicking the dark overlay (but not the dialog itself).
 document.querySelectorAll('.modal-overlay').forEach(ov => {
