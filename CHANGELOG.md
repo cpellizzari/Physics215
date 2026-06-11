@@ -10,6 +10,51 @@ Newest entries first. Dates are `YYYY-MM-DD`.
 
 ## 2026-06-11 — Matthew Recker
 
+### Added — `app/` role-based portal (foundation pass)
+
+A coherent, role-aware rewrite of the front end living in a new [`app/`](app/) subfolder,
+built to be promoted to the repo root later. **No database or RLS changes.** This first
+("foundation") pass ships the shell, theming, navigation, both dashboards, and the
+interaction views; the heavy grading / roster / sections / assignment-builder / export
+tools stay on the legacy pages and are reached via out-links until ported in a later pass.
+
+**Why:** the legacy pages each re-implemented their own login card, session check, and
+`esc()` helper, had no shared module, no dashboard landing, and a single light-only theme.
+The portal unifies all of that behind one auth bootstrap and a top nav with light/dark mode.
+
+**Shared shell ([`app/js/`](app/js/)):**
+- `config.js` — copy of the root client (sets `window.db`); kept identical so paths don't
+  change after promotion. `supabase.js` re-exports it as an ES module.
+- `auth.js` — one `bootstrap({ require })` every page calls: restores the persisted session
+  (survives reload + navigation), redirects unauthenticated users to login with a `?next`
+  round-trip, resolves role by **table membership** (instructors vs students), resolves the
+  faculty course list + persisted current course (ports `admin.html`'s `initAdmin`
+  fallbacks) or the student's course (derived from their section), and enforces the page's
+  required role.
+- `nav.js` — shared top navigation: role links, faculty **course switcher**, theme toggle,
+  user menu, mobile menu. `theme.js` — `data-theme` dark mode (localStorage +
+  `prefers-color-scheme`, no-flash head snippet). `util.js` — `esc()`, due-date/section
+  logic, an emoji-fallback `iconHTML()`, and `legacyUrl()` (resolves root-level legacy
+  links correctly both at `/app/` and after promotion).
+- `student-data.js` / `faculty-data.js` — batched, no-N+1 dashboard queries over existing
+  tables only.
+
+**Pages:** [`app/login.html`](app/login.html) (unified cadet-ID-or-email login),
+[`app/index.html`](app/index.html) (role router), student
+[dashboard](app/student/dashboard.html) / [assignments](app/student/assignments.html)
+(ported submit+review engine) / [interactions](app/student/interactions.html), and faculty
+[dashboard](app/faculty/dashboard.html) (per-section submission/grading roll-up) /
+[interactions](app/faculty/interactions.html) (completion roll-up + per-student report viewer).
+
+**Design system:** [`app/css/styles.css`](app/css/styles.css) is the legacy sheet with its
+~14 hardcoded surface/alert colors tokenized into CSS variables plus a `[data-theme="dark"]`
+set, extended with top-nav, stat-tile, and roll-up components.
+
+**Icons:** [`app/media/icons/ICON-SEARCH-PROMPT.md`](app/media/icons/ICON-SEARCH-PROMPT.md)
+is a ready-to-run prompt to source ~35 cohesive **Lineal Color** icons; the UI references
+their filenames and falls back to emoji until they're dropped in. See
+[`app/README.md`](app/README.md) for the structure and go-live steps.
+
 ### Added — Lesson Interactions feature
 
 A new path alongside the existing assignments system: students work through a Claude

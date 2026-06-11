@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactions · Preflights</title>
+  <script>(function(){try{var s=localStorage.getItem('cp.theme');var m=s||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');if(m==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+  <link rel="stylesheet" href="../css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+</head>
+<body>
+  <header id="topnav"></header>
+  <main class="page-wide" id="main">
+    <div class="center-load"><span class="spinner"></span><span>Loading interactions…</span></div>
+  </main>
+
+  <div class="modal-backdrop" id="report-modal">
+    <div class="modal">
+      <div class="modal-head"><h2 id="rm-title">Student report</h2><button class="modal-close" data-close>×</button></div>
+      <div class="row wrap" style="gap:10px;margin-bottom:14px;align-items:flex-end">
+        <div class="grow" style="min-width:120px"><label>Section</label><select id="sel-section"></select></div>
+        <div class="grow" style="min-width:160px"><label>Student</label><select id="sel-student"></select></div>
+        <button class="btn btn-primary" id="load-report">View</button>
+      </div>
+      <div class="md-render" id="rm-body"><div class="muted">Pick a section and student, then choose <strong>View</strong>.</div></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { db } from '../js/supabase.js';
+    import { bootstrap } from '../js/auth.js';
+    import { renderNav } from '../js/nav.js';
+    import { initTheme } from '../js/theme.js';
+    import { loadFacultyInteractions } from '../js/faculty-data.js';
+    import { esc, pct, legacyUrl } from '../js/util.js';
+
+    const ctx = await bootstrap({ require: 'faculty' });
+    if (!ctx) { /* redirected */ } else { init(); }
+
+    const MANAGE_URL = legacyUrl('interactions-admin.html');
+
+    let vm = null;
+    let modalInteraction = null;
+
+    function init() {
+      initTheme();
+      renderNav(ctx, { active: 'interactions', onCourseChange: () => load() });
+      wireModal();
+      load();
+    }
+
+    const barClass = p => p >= 80 ? '' : p >= 40 ? 'partial' : 'low';
+
+    async function load() {
+      const root = document.getElementById('main');
+      root.innerHTML = `<div class="center-load"><span class="spinner"></span><span>Loading…</span></div>`;
+      vm = await loadFacultyInteractions(ctx);
+
+      const head = `<div class="page-head">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div><h1>Lesson interactions</h1><div class="sub">Completion across your sections for ${esc(ctx.courseTitleOf(ctx.currentCourse))}.</div></div>
+          <a class="btn btn-primary" href="${MANAGE_URL}" target="_blank" rel="noopener">Manage interactions ↗</a>
+        </div></div>`;
+
+      if (vm.noCourse) { root.innerHTML = head + `<div class="alert alert-warn">No course access found.</div>`; return; }
+      if (vm.noSections) { root.innerHTML = head + `<div class="empty-state"><div class="es-ic">🗂️</div><h3>No sections</h3><p>You have no sections in this course yet.</p></div>`; return; }
+      if (!vm.interactions.length) {
+        root.innerHTML = head + `<div class="empty-state"><div class="es-ic">💡</div><h3>Nothing published</h3>
+          <p>Publish a lesson interaction from <a href="${MANAGE_URL}" target="_blank" rel="noopener">Manage interactions</a> and completion will appear here.</p></div>`;
+        return;
+      }
+
+      const cards = vm.interactions.map(it => {
+        const p = pct(it.done, it.total);
+        const chips = it.perSection.map(s => {
+          const sp = pct(s.done, s.total);
+          return `<div class="progress-row" style="min-width:150px;flex:1">
+            <span class="pr-label">${esc(s.sectionId)}</span>
+            <span class="pr-count">${s.done}/${s.total}</span>
+            <div class="pr-track"><div class="pr-fill ${barClass(sp)}" style="width:${sp}%"></div></div>
+          </div>`;
+        }).join('');
+        return `<div class="card">
+          <div class="row wrap" style="justify-content:space-between;align-items:flex-start;gap:12px">
+            <div class="grow" style="min-width:220px">
+              <div class="card-title">${esc(it.title)}</div>
+              ${it.description ? `<div class="muted" style="font-size:0.86em;margin-top:4px">${esc(it.description)}</div>` : ''}
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:1.4em;font-weight:800">${p}%</div>
+              <div class="muted" style="font-size:0.78em">${it.done}/${it.total} reports</div>
+              <button class="btn btn-ghost btn-sm" style="margin-top:8px" data-view="${esc(it.id)}" data-title="${esc(it.title)}">View reports</button>
+            </div>
+          </div>
+          <div class="row wrap" style="gap:14px;margin-top:14px">${chips}</div>
+        </div>`;
+      }).join('');
+
+      root.innerHTML = head + cards;
+      root.querySelectorAll('[data-view]').forEach(b =>
+        b.addEventListener('click', () => openReports(b.dataset.view, b.dataset.title)));
+    }
+
+    function wireModal() {
+      const modal = document.getElementById('report-modal');
+      modal.addEventListener('click', (e) => { if (e.target.id === 'report-modal' || e.target.dataset.close !== undefined) modal.classList.remove('open'); });
+      document.getElementById('sel-section').addEventListener('change', fillStudents);
+      document.getElementById('load-report').addEventListener('click', viewReport);
+    }
+
+    function openReports(interactionId, title) {
+      modalInteraction = interactionId;
+      document.getElementById('rm-title').textContent = title || 'Student report';
+      const secSel = document.getElementById('sel-section');
+      secSel.innerHTML = vm.sections.map(s => `<option value="${esc(s.id)}">${esc(s.id)} (${s.students.length})</option>`).join('');
+      fillStudents();
+      document.getElementById('rm-body').innerHTML = `<div class="muted">Pick a section and student, then choose <strong>View</strong>.</div>`;
+      document.getElementById('report-modal').classList.add('open');
+    }
+
+    function fillStudents() {
+      const secId = document.getElementById('sel-section').value;
+      const sec = vm.sections.find(s => s.id === secId);
+      const sel = document.getElementById('sel-student');
+      sel.innerHTML = (sec?.students || []).map(s => `<option value="${esc(s.student_id)}">${esc(s.name)}</option>`).join('')
+        || `<option value="">No students</option>`;
+    }
+
+    async function viewReport() {
+      const sid = document.getElementById('sel-student').value;
+      const body = document.getElementById('rm-body');
+      if (!sid || !modalInteraction) return;
+      body.innerHTML = `<div class="center-load"><span class="spinner"></span></div>`;
+      const { data } = await db.from('preflight_interaction_reports')
+        .select('report_markdown').eq('student_id', sid).eq('interaction_id', modalInteraction).maybeSingle();
+      // Report markdown is an inert, user-controllable blob — sanitize at render time.
+      body.innerHTML = data?.report_markdown
+        ? DOMPurify.sanitize(marked.parse(data.report_markdown))
+        : `<div class="alert alert-info">This student hasn't submitted a report for this interaction yet.</div>`;
+    }
+  </script>
+</body>
+</html>

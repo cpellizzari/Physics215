@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard · Preflights</title>
+  <script>(function(){try{var s=localStorage.getItem('cp.theme');var m=s||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');if(m==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+  <link rel="stylesheet" href="../css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+</head>
+<body>
+  <header id="topnav"></header>
+  <main class="page-wide" id="main">
+    <div class="center-load"><span class="spinner"></span><span>Loading your dashboard…</span></div>
+  </main>
+
+  <script type="module">
+    import { bootstrap } from '../js/auth.js';
+    import { renderNav } from '../js/nav.js';
+    import { initTheme } from '../js/theme.js';
+    import { loadStudentDashboard } from '../js/student-data.js';
+    import { esc, iconHTML, relativeDue, deadlineClass, fmtDate, pct } from '../js/util.js';
+
+    const ctx = await bootstrap({ require: 'student' });
+    if (!ctx) { /* redirected */ } else { initTheme(); renderNav(ctx, { active: 'dashboard' }); main(); }
+
+    const firstName = (ctx?.studentRow?.name || '').split(/\s+/)[0] || 'Cadet';
+
+    async function main() {
+      const root = document.getElementById('main');
+      const vm = await loadStudentDashboard(ctx);
+
+      if (vm.noCourse) {
+        root.innerHTML = `
+          <div class="page-head"><h1>Welcome, ${esc(firstName)}</h1></div>
+          <div class="alert alert-warn">Your section isn't assigned to a course yet. Ask your
+          instructor to add you to a section so your assignments appear here.</div>`;
+        return;
+      }
+
+      root.innerHTML = `
+        <div class="page-head">
+          <h1>Welcome back, ${esc(firstName)}</h1>
+          <div class="sub">${esc(ctx.courseTitleOf(ctx.currentCourse))} · Section ${esc(ctx.studentRow.section_id || '—')}</div>
+        </div>
+        ${statTiles(vm.stats)}
+        ${upcomingSection(vm.upcoming)}
+        ${vm.overdue.length ? overdueSection(vm.overdue) : ''}
+        ${interactionsSection(vm.interactionsTodo, vm.interactions)}
+        ${gradedSection(vm.graded)}`;
+    }
+
+    function statTiles(s) {
+      const tile = (accent, icon, emoji, num, label) => `
+        <div class="stat-tile accent-${accent}">
+          <div class="stat-ic">${iconHTML(icon, emoji, 'ic')}</div>
+          <div class="stat-body"><div class="stat-num">${num}</div><div class="stat-label">${esc(label)}</div></div>
+        </div>`;
+      return `<div class="stat-grid">
+        ${tile('blue',  'todo',         '📝', s.toDo, 'To do')}
+        ${tile('red',   'overdue',      '⏰', s.overdue, 'Overdue')}
+        ${tile('gold',  'interactions', '💡', s.interactionsToDo, 'Interactions to do')}
+        ${tile('green', 'award',        '🏅', s.avgPct == null ? '—' : s.avgPct + '%', 'Average grade')}
+      </div>`;
+    }
+
+    function statusDot(st) {
+      return { 'not-started':'grey', 'submitted':'green', 'overdue':'red', 'pending':'blue', 'graded':'green' }[st] || 'grey';
+    }
+    function statusText(item) {
+      switch (item.status) {
+        case 'submitted': return 'Submitted · editable until due';
+        case 'not-started': return relativeDue(item.due);
+        case 'overdue': return relativeDue(item.due);
+        case 'pending': return 'Submitted · grading in progress';
+        case 'graded': return `Graded ${item.score.total_score}/${item.score.max_total}`;
+        default: return '';
+      }
+    }
+
+    function assignmentItem(a) {
+      const dueCls = deadlineClass(a.due, a.isPast);
+      return `<a class="list-item" href="assignments.html?a=${encodeURIComponent(a.id)}">
+        <span class="status-dot ${statusDot(a.status)}"></span>
+        <div class="li-body">
+          <div class="li-title">${esc(a.title)}</div>
+          <div class="li-meta"><span>${a.qCount} question${a.qCount===1?'':'s'} · ${a.totalPts} pts</span>
+            <span class="deadline ${dueCls}">${esc(statusText(a))}</span></div>
+        </div>
+        <span class="li-arrow">›</span>
+      </a>`;
+    }
+
+    function upcomingSection(items) {
+      const body = items.length
+        ? `<div class="list">${items.slice(0, 6).map(assignmentItem).join('')}</div>`
+        : `<div class="empty-state"><div class="es-ic">✅</div><h3>All caught up</h3>
+             <p>You have no open assignments right now. Nice work.</p></div>`;
+      return `<section class="dash-section">
+        <div class="section-head"><h2>Up next</h2>
+          ${items.length ? `<span class="count-pill">${items.length}</span>` : ''}
+          <span class="grow"></span>
+          <a class="btn btn-ghost btn-sm" href="assignments.html">View all</a>
+        </div>${body}</section>`;
+    }
+
+    function overdueSection(items) {
+      return `<section class="dash-section">
+        <div class="section-head"><h2>Needs attention</h2><span class="count-pill">${items.length}</span></div>
+        <div class="list">${items.map(assignmentItem).join('')}</div></section>`;
+    }
+
+    function interactionsSection(todo, all) {
+      const done = all.filter(i => i.done);
+      let body;
+      if (!all.length) {
+        body = `<div class="empty-state"><div class="es-ic">💡</div><h3>No interactions yet</h3>
+          <p>Lesson interactions will appear here when your instructor publishes them.</p></div>`;
+      } else {
+        const todoHTML = todo.map(i => `
+          <div class="list-item">
+            <span class="status-dot amber"></span>
+            <div class="li-body"><div class="li-title">${esc(i.title)}</div>
+              <div class="li-meta">${esc(i.description || 'Interactive lesson')}</div></div>
+            <div class="li-right">
+              <a class="btn btn-primary btn-sm" href="${esc(i.artifact_url || '#')}" target="_blank" rel="noopener">Launch ↗</a>
+            </div>
+          </div>`).join('');
+        const doneHTML = done.length ? `<div class="list" style="margin-top:10px">${
+          done.map(i => `<div class="list-item">
+            <span class="status-dot green"></span>
+            <div class="li-body"><div class="li-title">${esc(i.title)}</div>
+              <div class="li-meta">Completed ${fmtDate(i.submittedAt)}</div></div>
+            <span class="tag gold">Done</span></div>`).join('')}</div>` : '';
+        body = (todo.length ? `<div class="list">${todoHTML}</div>` : `
+          <div class="empty-state" style="padding:24px"><div class="es-ic">🎉</div>
+          <h3>All interactions complete</h3><p>You've finished every published interaction.</p></div>`) + doneHTML;
+      }
+      return `<section class="dash-section">
+        <div class="section-head"><h2>Lesson interactions</h2>
+          ${todo.length ? `<span class="count-pill">${todo.length} to do</span>` : ''}
+          <span class="grow"></span>
+          <a class="btn btn-ghost btn-sm" href="interactions.html">View all</a>
+        </div>${body}</section>`;
+    }
+
+    function gradedSection(items) {
+      if (!items.length) return '';
+      const badge = (a) => {
+        const p = pct(a.score.total_score, a.score.max_total);
+        const cls = p >= 90 ? 'full' : p >= 60 ? 'partial' : 'zero';
+        return `<span class="score-badge ${cls}">${a.score.total_score}/${a.score.max_total}</span>`;
+      };
+      return `<section class="dash-section">
+        <div class="section-head"><h2>Recently graded</h2><span class="count-pill">${items.length}</span></div>
+        <div class="list">${items.slice(0, 5).map(a => `
+          <a class="list-item" href="assignments.html?a=${encodeURIComponent(a.id)}">
+            <span class="status-dot green"></span>
+            <div class="li-body"><div class="li-title">${esc(a.title)}</div>
+              <div class="li-meta">Graded by your instructor</div></div>
+            <div class="li-right">${badge(a)}<span class="li-arrow">›</span></div>
+          </a>`).join('')}</div></section>`;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assignments · Preflights</title>
+  <script>(function(){try{var s=localStorage.getItem('cp.theme');var m=s||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');if(m==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    .review-answer-box { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 6px;
+      padding: 12px 14px; font-size: 0.92em; line-height: 1.55; white-space: pre-wrap; margin-bottom: 10px; }
+    .review-score-badge { display: inline-block; padding: 6px 16px; border-radius: 6px; font-size: 0.88em; font-weight: 700; border: 2px solid transparent; }
+    .review-score-badge.full { background: var(--alert-ok-bg);    border-color: var(--alert-ok-bd);    color: var(--alert-ok-fg); }
+    .review-score-badge.warn { background: var(--alert-warn-bg);  border-color: var(--alert-warn-bd);  color: var(--alert-warn-fg); }
+    .review-score-badge.zero { background: var(--alert-error-bg); border-color: var(--alert-error-bd); color: var(--alert-error-fg); }
+    .review-feedback { margin-top: 8px; padding: 10px 14px; background: var(--feedback-bg); border-left: 3px solid var(--gold);
+      border-radius: 0 6px 6px 0; font-size: 0.88em; color: var(--feedback-fg); line-height: 1.5; }
+    .score-hero { background: linear-gradient(135deg, var(--blue), var(--blue-lt)); color: #fff; border: none; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+</head>
+<body>
+  <header id="topnav"></header>
+  <main class="page" id="main">
+    <div class="center-load"><span class="spinner"></span><span>Loading assignments…</span></div>
+  </main>
+
+  <script type="module">
+    import { db } from '../js/supabase.js';
+    import { bootstrap } from '../js/auth.js';
+    import { renderNav } from '../js/nav.js';
+    import { initTheme } from '../js/theme.js';
+    import { loadAssignmentStatuses } from '../js/student-data.js';
+    import { esc, deadlineClass, relativeDue, fmtDateTime } from '../js/util.js';
+
+    const ctx = await bootstrap({ require: 'student' });
+    if (!ctx) { /* redirected */ } else { init(); }
+
+    const sid = ctx?.studentRow?.student_id;
+    let list = [];
+    let current = null;       // current assignment object
+    let answers = {};
+    let saveTimer = null;
+
+    async function init() {
+      initTheme();
+      renderNav(ctx, { active: 'assignments', onCourseChange: () => loadList() });
+      await loadList();
+    }
+
+    async function loadList() {
+      const root = document.getElementById('main');
+      if (!ctx.currentCourse) {
+        root.innerHTML = `<div class="alert alert-warn">Your section isn't assigned to a course yet.</div>`;
+        return;
+      }
+      root.innerHTML = `<div class="center-load"><span class="spinner"></span><span>Loading…</span></div>`;
+      list = await loadAssignmentStatuses(ctx);
+
+      const params = new URLSearchParams(location.search);
+      const openId = params.get('a');
+      if (openId) {
+        const a = list.find(x => String(x.id) === String(openId));
+        if (a) { openAssignment(a); return; }
+      }
+      renderList();
+    }
+
+    const STATUS_META = {
+      'graded':      { dot: 'green', text: a => `${a.score.total_score} / ${a.score.max_total} pts` },
+      'pending':     { dot: 'blue',  text: () => '⏳ Pending grading' },
+      'submitted':   { dot: 'green', text: () => '✓ Submitted' },
+      'overdue':     { dot: 'red',   text: () => 'Not submitted' },
+      'not-started': { dot: 'grey',  text: () => 'Not started' },
+    };
+
+    function renderList() {
+      const root = document.getElementById('main');
+      if (!list.length) {
+        root.innerHTML = `<div class="page-head"><h1>Assignments</h1></div>
+          <div class="empty-state"><div class="es-ic">📋</div><h3>No assignments yet</h3>
+          <p>Published assignments for ${esc(ctx.courseTitleOf(ctx.currentCourse))} will appear here.</p></div>`;
+        return;
+      }
+      const items = list.map(a => {
+        const meta = STATUS_META[a.status];
+        const dueCls = deadlineClass(a.due, a.isPast);
+        const dueText = a.due
+          ? (a.isPast ? `Closed ${a.due.toLocaleDateString()}` : `Due ${fmtDateTime(a.due)}`)
+          : 'No due date';
+        return `<a class="list-item" href="?a=${encodeURIComponent(a.id)}" data-open="${esc(a.id)}">
+          <span class="status-dot ${meta.dot}"></span>
+          <div class="li-body">
+            <div class="li-title">${esc(a.title)}</div>
+            <div class="li-meta"><span>${a.qCount} question${a.qCount===1?'':'s'} · ${a.totalPts} pts</span>
+              <span class="deadline ${dueCls}">${esc(dueText)}</span></div>
+          </div>
+          <div class="li-right"><span class="muted" style="font-size:0.82em">${meta.text(a)}</span><span class="li-arrow">›</span></div>
+        </a>`;
+      }).join('');
+      root.innerHTML = `<div class="page-head"><h1>My assignments</h1>
+        <div class="sub">Open assignments can be edited until the deadline. Click one to submit or view your grade.</div></div>
+        <div class="list">${items}</div>`;
+
+      root.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const a = list.find(x => String(x.id) === el.dataset.open);
+        if (a) { history.replaceState(null, '', `?a=${encodeURIComponent(a.id)}`); openAssignment(a); }
+      }));
+    }
+
+    function backToList() {
+      current = null;
+      history.replaceState(null, '', location.pathname);
+      renderList();
+    }
+
+    async function openAssignment(a) {
+      current = a; answers = {};
+      const root = document.getElementById('main');
+      root.innerHTML = `<div class="center-load"><span class="spinner"></span><span>Loading…</span></div>`;
+
+      // a.due / a.isPast already account for the per-student extension (computed in the
+      // list load), so we only need the saved answers + any finalized score here.
+      const [{ data: existing }, { data: scoreRow }] = await Promise.all([
+        db.from('responses').select('answers').eq('student_id', sid).eq('assignment_id', a.id).maybeSingle(),
+        db.from('scores').select('total_score, max_total, question_scores, is_finalized')
+          .eq('student_id', sid).eq('assignment_id', a.id).maybeSingle(),
+      ]);
+
+      const isGraded = !!scoreRow?.is_finalized;
+      const isPast = a.isPast;
+      const due = a.due;
+
+      const figHTML = a.figure_url
+        ? `<div style="margin-bottom:20px;text-align:center"><img src="${esc(a.figure_url)}" alt="Assignment figure"
+            style="max-width:100%;max-height:400px;border-radius:8px;border:1px solid var(--border)"></div>` : '';
+      let descHTML = a.description ? `<span>${esc(a.description)}</span>` : '';
+      if (a.reading_link) descHTML += (descHTML ? '<br>' : '') +
+        `<a href="${esc(a.reading_link)}" target="_blank" rel="noopener"
+          style="display:inline-flex;gap:6px;margin-top:8px;font-size:0.88em;color:var(--blue-lt);font-weight:600;text-decoration:none">📖 Read before completing ↗</a>`;
+
+      const header = `
+        <button class="btn btn-secondary btn-sm" id="back-btn" style="margin-bottom:20px">← Back to assignments</button>
+        <div class="card">
+          <div class="card-title">${esc(a.title)}</div>
+          <div class="card-meta">${due ? 'Due ' + fmtDateTime(due) : 'No due date'} · ${a.totalPts} pts</div>
+          <div style="font-size:0.9em;color:var(--muted)">${descHTML}</div>
+        </div>${figHTML}`;
+
+      if (isGraded) {
+        root.innerHTML = header + `
+          <div class="card score-hero">
+            <div class="row wrap" style="justify-content:space-between">
+              <div><div style="font-size:0.78em;opacity:0.8;text-transform:uppercase;letter-spacing:0.05em">Total score</div>
+                <div style="font-size:2em;font-weight:800">${scoreRow.total_score} / ${scoreRow.max_total} pts</div></div>
+              <div style="font-size:0.85em;opacity:0.85">Graded by your instructor</div>
+            </div>
+          </div>
+          <div id="review-questions"></div>`;
+        renderReviewQuestions(a.questions || [], existing?.answers || {}, scoreRow.question_scores || {});
+      } else {
+        if (existing?.answers) answers = existing.answers;
+        const closed = isPast
+          ? `<div class="alert alert-warn">This assignment is past due. Your submitted answers are shown below${existing?.answers ? ' (grading in progress)' : ''}.</div>` : '';
+        root.innerHTML = header + `
+          ${closed}
+          <div id="progress-wrap" style="margin-bottom:8px;${isPast?'display:none':''}">
+            <div class="row" style="justify-content:space-between;font-size:0.78em;color:var(--muted);margin-bottom:4px">
+              <span id="progress-label">0 of 0 answered</span><span id="save-status" style="color:var(--green)"></span>
+            </div>
+            <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
+          </div>
+          <div id="questions"></div>
+          <div id="submit-section" style="margin-top:24px;display:${isPast?'none':'flex'};gap:12px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-primary" id="submit-btn">Submit assignment</button>
+            <span id="submit-status" style="font-size:0.85em"></span>
+          </div>`;
+        renderQuestions(a.questions || [], isPast);
+        updateProgress();
+        document.getElementById('submit-btn')?.addEventListener('click', submitAssignment);
+        wireInputs();
+      }
+      document.getElementById('back-btn').addEventListener('click', backToList);
+      window.scrollTo(0, 0);
+    }
+
+    function renderQuestions(questions, readOnly) {
+      const c = document.getElementById('questions');
+      c.innerHTML = questions.map((q, idx) => {
+        const pts = q.points === 1 ? '1 pt' : `${q.points} pts`;
+        const val = answers[q.id] ?? '';
+        let input = '';
+        if (q.type === 'multiple_choice') {
+          input = `<div class="mc-options">${(q.options||[]).map((opt,i)=>`
+            <label class="mc-option ${val===opt?'selected':''}" data-mc="${esc(q.id)}">
+              <input type="radio" name="mc-${esc(q.id)}" value="${esc(opt)}" ${val===opt?'checked':''} ${readOnly?'disabled':''}
+                data-qid="${esc(q.id)}"> ${esc(opt)}</label>`).join('')}</div>`;
+        } else if (q.type === 'numerical') {
+          input = `<input type="number" step="any" value="${esc(String(val))}" placeholder="Enter a number"
+            ${readOnly?'readonly':''} data-qid="${esc(q.id)}" style="max-width:220px">
+            <div class="field-hint">Numerical answer — units not required here.</div>`;
+        } else {
+          input = `<textarea placeholder="Write your response here…" ${readOnly?'readonly':''} data-qid="${esc(q.id)}">${esc(val)}</textarea>`;
+        }
+        const fig = q.figure_url ? `<div style="margin:10px 0 14px;text-align:center"><img src="${esc(q.figure_url)}" alt="Question figure"
+          style="max-width:100%;max-height:320px;border-radius:6px;border:1px solid var(--border)"></div>` : '';
+        const answered = val && String(val).trim() ? ' answered' : '';
+        return `<div class="question-block${answered}" id="qb-${esc(q.id)}">
+          <div class="question-number">Question ${idx+1}</div>
+          <div class="question-text">${esc(q.text)}</div>${fig}
+          <div class="question-pts">${pts}</div>${input}</div>`;
+      }).join('');
+    }
+
+    function wireInputs() {
+      const c = document.getElementById('questions');
+      c.addEventListener('input', (e) => {
+        const t = e.target.closest('[data-qid]');
+        if (t && (t.tagName === 'TEXTAREA' || t.type === 'number')) recordAnswer(t.dataset.qid, t.value);
+      });
+      c.addEventListener('change', (e) => {
+        const r = e.target.closest('input[type="radio"][data-qid]');
+        if (!r) return;
+        recordAnswer(r.dataset.qid, r.value);
+        c.querySelectorAll(`[data-mc="${CSS.escape(r.dataset.qid)}"]`).forEach(l =>
+          l.classList.toggle('selected', l.contains(r) && r.checked));
+      });
+    }
+
+    function recordAnswer(qId, value) {
+      answers[qId] = value;
+      updateProgress();
+      document.getElementById(`qb-${qId}`)?.classList.toggle('answered', String(value).trim().length > 0);
+      clearTimeout(saveTimer);
+      const st = document.getElementById('save-status');
+      if (st) st.textContent = 'Saving…';
+      saveTimer = setTimeout(autoSave, 1200);
+    }
+
+    async function autoSave() {
+      if (!current) return;
+      const { error } = await db.from('responses').upsert({
+        student_id: sid, assignment_id: current.id, answers, updated_at: new Date().toISOString(),
+      }, { onConflict: 'student_id,assignment_id' });
+      const st = document.getElementById('save-status');
+      if (st) { st.textContent = error ? '⚠ Save failed' : '✓ Saved'; setTimeout(() => { st.textContent = ''; }, 2000); }
+    }
+
+    function updateProgress() {
+      if (!current) return;
+      const qs = current.questions || [];
+      const answered = qs.filter(q => answers[q.id] && String(answers[q.id]).trim()).length;
+      const lbl = document.getElementById('progress-label');
+      const bar = document.getElementById('progress-bar');
+      if (lbl) lbl.textContent = `${answered} of ${qs.length} answered`;
+      if (bar) bar.style.width = qs.length ? `${Math.round(answered/qs.length*100)}%` : '0%';
+    }
+
+    async function submitAssignment() {
+      const btn = document.getElementById('submit-btn');
+      const status = document.getElementById('submit-status');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner on-dark"></span> Submitting…';
+      const { error } = await db.from('responses').upsert({
+        student_id: sid, assignment_id: current.id, answers, updated_at: new Date().toISOString(),
+      }, { onConflict: 'student_id,assignment_id' });
+      if (error) {
+        status.textContent = '⚠ Submission failed — please try again.'; status.style.color = 'var(--red)';
+        btn.disabled = false; btn.textContent = 'Submit assignment'; return;
+      }
+      btn.textContent = '✓ Submitted';
+      status.textContent = 'Your answers are saved. You can edit them until the deadline.';
+      status.style.color = 'var(--green)';
+    }
+
+    function renderReviewQuestions(questions, studentAnswers, questionScores) {
+      const labels = { full:'✓ Full credit', warn:'⚠ Full credit', zero:'✗ No credit' };
+      document.getElementById('review-questions').innerHTML = questions.map((q, idx) => {
+        const answer = studentAnswers[q.id] ?? '';
+        const qs = questionScores[q.id] || {};
+        const pts = q.points === 1 ? '1 pt' : `${q.points} pts`;
+        const status = qs.status || (qs.score >= q.points ? 'full' : 'zero');
+        const ansHTML = !String(answer).trim()
+          ? `<div class="muted" style="font-style:italic;font-size:0.88em">No answer submitted.</div>`
+          : `<div class="review-answer-box">${esc(String(answer))}</div>`;
+        const fbHTML = qs.feedback ? `<div class="review-feedback"><strong>Instructor feedback:</strong> ${esc(qs.feedback)}</div>` : '';
+        const fig = q.figure_url ? `<div style="margin:10px 0 14px;text-align:center"><img src="${esc(q.figure_url)}" alt="Question figure"
+          style="max-width:100%;max-height:320px;border-radius:6px;border:1px solid var(--border)"></div>` : '';
+        return `<div class="question-block">
+          <div class="question-number">Question ${idx+1}</div>
+          <div class="question-text">${esc(q.text)}</div>${fig}
+          <div class="question-pts">${pts}</div>
+          <div class="row" style="margin-bottom:10px">
+            <span class="review-score-badge ${status}">${labels[status]||labels.full}</span>
+            <span class="muted" style="font-size:0.9em">${qs.score ?? '—'} / ${q.points} pts</span>
+          </div>${ansHTML}${fbHTML}</div>`;
+      }).join('');
+    }
+  </script>
+</body>
+</html>

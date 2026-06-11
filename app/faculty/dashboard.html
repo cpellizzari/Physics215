@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard · Preflights</title>
+  <script>(function(){try{var s=localStorage.getItem('cp.theme');var m=s||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');if(m==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+  <link rel="stylesheet" href="../css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+</head>
+<body>
+  <header id="topnav"></header>
+  <main class="page-wide" id="main">
+    <div class="center-load"><span class="spinner"></span><span>Loading your dashboard…</span></div>
+  </main>
+
+  <script type="module">
+    import { bootstrap } from '../js/auth.js';
+    import { renderNav } from '../js/nav.js';
+    import { initTheme } from '../js/theme.js';
+    import { loadFacultyDashboard } from '../js/faculty-data.js';
+    import { esc, iconHTML, pct, legacyUrl } from '../js/util.js';
+
+    const ctx = await bootstrap({ require: 'faculty' });
+    if (!ctx) { /* redirected */ } else { init(); }
+
+    const firstName = (ctx?.instructorRow?.name || '').split(/\s+/)[0] || 'Instructor';
+
+    function init() {
+      initTheme();
+      renderNav(ctx, { active: 'dashboard', onCourseChange: () => main() });
+      main();
+    }
+
+    async function main() {
+      const root = document.getElementById('main');
+      root.innerHTML = `<div class="center-load"><span class="spinner"></span><span>Loading…</span></div>`;
+      const vm = await loadFacultyDashboard(ctx);
+
+      const roleLabel = ctx.instructorRow?.is_global_admin ? 'Global admin'
+        : ctx.isDirectorForCurrent() ? 'Director' : 'Instructor';
+      const head = `<div class="page-head">
+        <h1>Welcome, ${esc(firstName)}</h1>
+        <div class="sub">${esc(ctx.courseTitleOf(ctx.currentCourse))} · ${esc(roleLabel)}</div></div>`;
+
+      if (vm.noCourse) { root.innerHTML = head + `<div class="alert alert-warn">No course access found. Contact the course director.</div>`; return; }
+      if (vm.noSections) {
+        root.innerHTML = head + quickActions() + `<div class="empty-state"><div class="es-ic">🗂️</div>
+          <h3>No sections yet</h3><p>You don't have any sections in ${esc(vm.courseTitle)} yet.
+          ${ctx.isDirectorForCurrent() ? 'Create sections and upload a roster in the gradebook.' : 'Ask your course director to assign you to sections.'}</p></div>`;
+        return;
+      }
+
+      root.innerHTML = head + statTiles(vm.totals) + quickActions() + rollup(vm);
+    }
+
+    function statTiles(t) {
+      const tile = (accent, icon, emoji, num, label) => `
+        <div class="stat-tile accent-${accent}">
+          <div class="stat-ic">${iconHTML(icon, emoji, 'ic')}</div>
+          <div class="stat-body"><div class="stat-num">${num}</div><div class="stat-label">${esc(label)}</div></div>
+        </div>`;
+      return `<div class="stat-grid">
+        ${tile('blue',  'sections',      '🗂️', t.sections, t.sections === 1 ? 'Section' : 'Sections')}
+        ${tile('gold',  'students',      '👥', t.students, 'Students')}
+        ${tile('amber', 'pending-grade', '✍️', t.needsGrading, 'Submissions to grade')}
+        ${tile('green', 'analytics',     '📈', t.submittedPct + '%', 'Avg submitted')}
+      </div>`;
+    }
+
+    function quickActions() {
+      const director = ctx.isDirectorForCurrent();
+      const btn = (href, icon, emoji, label) =>
+        `<a class="btn btn-ghost" href="${href}" target="_blank" rel="noopener">${iconHTML(icon, emoji, 'ic')} ${esc(label)}</a>`;
+      return `<div class="card">
+        <div class="card-meta">Quick actions <span class="muted">· open the full tools in a new tab</span></div>
+        <div class="row wrap" style="gap:10px">
+          ${btn(legacyUrl('admin.html'), 'grades', '📊', 'Gradebook & reports')}
+          ${btn(legacyUrl('interactions-admin.html'), 'interactions', '💡', 'Manage interactions')}
+          ${director ? btn(legacyUrl('admin.html'), 'roster', '🧑‍🎓', 'Roster') : ''}
+          ${director ? btn(legacyUrl('admin.html'), 'export', '⬇️', 'Export grades') : ''}
+        </div></div>`;
+    }
+
+    function barClass(p) { return p >= 80 ? '' : p >= 40 ? 'partial' : 'low'; }
+
+    function rollup(vm) {
+      const cards = vm.sections.map(sec => {
+        const rows = sec.perAssignment.length ? sec.perAssignment.map(a => {
+          const p = pct(a.submitted, a.total);
+          return `<div class="progress-row">
+            <span class="pr-label">${esc(a.title)}</span>
+            <span class="pr-count">${a.submitted}/${a.total} sub · ${a.graded} graded</span>
+            <div class="pr-track"><div class="pr-fill ${barClass(p)}" style="width:${p}%"></div></div>
+          </div>`;
+        }).join('') : `<div class="muted" style="font-size:0.84em">No published assignments yet.</div>`;
+
+        const ip = pct(sec.interaction.done, sec.interaction.total);
+        const interRow = sec.interaction.total ? `<div class="progress-row">
+          <span class="pr-label">💡 Interactions</span>
+          <span class="pr-count">${ip}% complete</span>
+          <div class="pr-track"><div class="pr-fill ${barClass(ip)}" style="width:${ip}%"></div></div>
+        </div>` : '';
+
+        return `<div class="section-card">
+          <div class="sc-head">
+            <span class="sc-tag">${esc(sec.id)}</span>
+            <div class="grow"><div class="sc-meta">${sec.studentCount} student${sec.studentCount===1?'':'s'}</div>
+              ${sec.instructorName ? `<div class="sc-instr">${esc(sec.instructorName)}</div>` : ''}</div>
+          </div>
+          <div class="sc-body">${rows}${interRow}</div>
+        </div>`;
+      }).join('');
+
+      return `<section class="dash-section">
+        <div class="section-head"><h2>Section roll-up</h2>
+          <span class="count-pill">${vm.sections.length}</span>
+          <span class="grow"></span>
+          <span class="muted" style="font-size:0.82em">Recent ${vm.assignments.length} assignment${vm.assignments.length===1?'':'s'}</span>
+        </div>
+        <div class="rollup-grid">${cards}</div></section>`;
+    }
+  </script>
+</body>
+</html>
