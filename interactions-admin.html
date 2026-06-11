@@ -7,6 +7,51 @@
 <link rel="stylesheet" href="css/styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
+<!-- For rendering submitted reports as pretty Markdown (sanitized) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+<style>
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.55);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; overflow-y: auto; z-index: 100;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; width: 100%; max-width: 620px;
+    padding: 26px 28px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+  }
+  .modal-wide { max-width: 880px; }
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 18px; gap: 12px;
+  }
+  .modal-header h3 { font-size: 1.15em; color: var(--blue); }
+  .modal-close {
+    background: none; border: none; font-size: 1.6em; line-height: 1;
+    cursor: pointer; color: var(--muted); padding: 0 4px;
+  }
+  .modal-actions { display: flex; gap: 10px; margin-top: 22px; }
+
+  /* ── Toolbar ── */
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
+
+  /* ── Rendered report ── */
+  .report-render { line-height: 1.55; }
+  .report-render h1 { font-size: 1.4rem; margin: 0.5em 0 0.4em; }
+  .report-render h2 { font-size: 1.2rem; margin: 0.9em 0 0.4em; }
+  .report-render h3 { font-size: 1.05rem; margin: 0.9em 0 0.4em; }
+  .report-render blockquote { margin: 1em 0; padding: 0.4em 1em; border-left: 4px solid var(--blue-lt); background: #f5f8ff; }
+  .report-render table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.9em; }
+  .report-render th, .report-render td { border: 1px solid #cbd5e1; padding: 7px 9px; text-align: left; vertical-align: top; }
+  .report-render th { background: #f1f5f9; }
+  .report-render code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+
+  .submission-card { border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; background: #fafbfc; }
+  .submission-meta { font-size: 0.82em; color: var(--muted); margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .submission-meta strong { color: var(--text); font-size: 1.05em; }
+</style>
 </head>
 <body>
 
@@ -36,15 +81,35 @@
   </div>
 </div>
 
-<!-- ── Main ── -->
+<!-- ── Main: list of interactions ── -->
 <div id="screen-main" class="page-wide" style="display:none">
+  <div class="toolbar">
+    <h2 style="margin:0">Lesson Interactions</h2>
+    <button class="btn btn-primary" id="new-btn" onclick="openEditModal(null)" style="display:none">+ New interaction</button>
+  </div>
 
-  <!-- Add form (managers only) -->
-  <div class="card" id="add-card" style="display:none">
-    <div class="card-title">Add a lesson interaction</div>
-    <div class="card-meta">The <strong>id</strong> is the slug the artifact embeds in its submit link. Every student doing this lesson shares it — keep it stable.</div>
-    <div id="add-error" class="alert alert-error" style="display:none"></div>
-    <div id="add-success" class="alert alert-success" style="display:none"></div>
+  <div id="viewonly-note" class="alert alert-info" style="display:none">
+    You’re signed in as an instructor. Only course directors and admins can add or edit interactions — you can still view submissions for your sections.
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Id</th><th>Course</th><th>Title</th><th>Status</th><th>Submissions</th><th></th></tr>
+      </thead>
+      <tbody id="rows"><tr><td colspan="6" style="color:var(--muted)">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Add / Edit modal ── -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="edit-modal-title">New interaction</h3>
+      <button class="modal-close" onclick="closeModal('edit-modal')" aria-label="Close">&times;</button>
+    </div>
+    <div id="edit-error" class="alert alert-error" style="display:none"></div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
       <div class="field">
@@ -53,13 +118,13 @@
       </div>
       <div class="field">
         <label>Interaction id (slug)</label>
-        <input type="text" id="f-id" placeholder="lesson-02-charge">
-        <div class="field-hint">Lowercase letters, numbers, hyphens only.</div>
+        <input type="text" id="f-id">
+        <div class="field-hint" id="f-id-hint">Lowercase letters, numbers, hyphens only.</div>
       </div>
     </div>
     <div class="field">
       <label>Title</label>
-      <input type="text" id="f-title" placeholder="Lesson 02 — Electric Charge &amp; Coulomb's Law">
+      <input type="text" id="f-title">
     </div>
     <div class="field">
       <label>Description (optional)</label>
@@ -72,34 +137,36 @@
     </div>
     <div class="field">
       <label style="display:flex; align-items:center; gap:8px; font-weight:600; color:var(--text)">
-        <input type="checkbox" id="f-pub" style="width:auto"> Publish immediately (visible to students)
+        <input type="checkbox" id="f-pub" style="width:auto"> Published (visible to students)
       </label>
     </div>
-    <button class="btn btn-primary" id="add-btn" onclick="addInteraction()">Add interaction</button>
-  </div>
 
-  <div id="viewonly-note" class="alert alert-info" style="display:none">
-    You’re signed in as an instructor. Only course directors and admins can add or edit interactions — the list below is read-only for you.
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="save-btn" onclick="saveInteraction()">Save</button>
+      <button class="btn btn-secondary" onclick="closeModal('edit-modal')">Cancel</button>
+    </div>
   </div>
+</div>
 
-  <!-- Existing interactions -->
-  <h2 style="margin:24px 0 12px">Existing interactions</h2>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>Id</th><th>Course</th><th>Title</th><th>Status</th><th>Artifact</th><th></th></tr>
-      </thead>
-      <tbody id="rows"><tr><td colspan="6" style="color:var(--muted)">Loading…</td></tr></tbody>
-    </table>
+<!-- ── Submissions modal ── -->
+<div class="modal-overlay" id="subs-modal">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h3 id="subs-title">Submissions</h3>
+      <button class="modal-close" onclick="closeModal('subs-modal')" aria-label="Close">&times;</button>
+    </div>
+    <div id="subs-body"><div style="color:var(--muted)">Loading…</div></div>
   </div>
 </div>
 
 <script>
 const COURSE_TITLES = { 'phys-215': 'Physics 215', 'phys-110': 'Physics 110' };
 
-let instructor = null;       // { id, name, is_director, is_global_admin }
-let manageableCourses = [];  // [{ id, title }] this user may add interactions to
+let instructor = null;        // { id, name, is_director, is_global_admin }
+let manageableCourses = [];   // [{ id, title }]
 let isManager = false;
+let editingId = null;         // null = creating; otherwise the slug being edited
+let countsByInteraction = {}; // interaction_id -> submission count
 
 function esc(str) {
   return String(str ?? '')
@@ -109,6 +176,7 @@ function showScreen(id) {
   ['screen-login','screen-main'].forEach(s =>
     document.getElementById(s).style.display = s === id ? '' : 'none');
 }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 // ── Login ──
 document.getElementById('pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
@@ -122,42 +190,35 @@ async function login() {
 
   const btn = document.getElementById('login-btn');
   btn.innerHTML = '<span class="spinner"></span>'; btn.disabled = true;
-
   const { error: authErr } = await db.auth.signInWithPassword({ email, password: pw });
   btn.innerHTML = 'Sign In'; btn.disabled = false;
   if (authErr) { err.textContent = 'Sign-in failed. Check your email and password.'; err.style.display = ''; return; }
 
-  const ok = await loadInstructor();
-  if (!ok) {
+  if (!await loadInstructor()) {
     err.textContent = 'This account is not an instructor. Contact an administrator.';
-    err.style.display = '';
-    await db.auth.signOut(); return;
+    err.style.display = ''; await db.auth.signOut(); return;
   }
   enterMain();
 }
 
-// ── Resolve instructor + which courses they can manage ──
 async function loadInstructor() {
   const { data: { user } } = await db.auth.getUser();
   if (!user) return false;
-
   const { data: instr } = await db.from('instructors')
     .select('id, name, is_director, is_global_admin').eq('id', user.id).single();
   if (!instr) return false;
   instructor = instr;
 
-  // Courses list (fallback to known titles if the courses table read is empty)
   let { data: courses } = await db.from('courses').select('id, title').order('id');
   if (!courses?.length) courses = Object.keys(COURSE_TITLES).map(id => ({ id, title: COURSE_TITLES[id] }));
 
   if (instr.is_global_admin || instr.is_director) {
-    // Legacy/global managers can add to any course.
     manageableCourses = courses;
   } else {
     const { data: access } = await db.from('instructor_course_access')
       .select('course_id, role').eq('instructor_id', user.id);
-    const directorCourseIds = (access || []).filter(a => a.role === 'director').map(a => a.course_id);
-    manageableCourses = courses.filter(c => directorCourseIds.includes(c.id));
+    const dirCourses = (access || []).filter(a => a.role === 'director').map(a => a.course_id);
+    manageableCourses = courses.filter(c => dirCourses.includes(c.id));
   }
   isManager = manageableCourses.length > 0;
   return true;
@@ -167,23 +228,96 @@ function enterMain() {
   document.getElementById('header-name').textContent = instructor.name;
   document.getElementById('header-name').style.display = '';
   showScreen('screen-main');
-
   if (isManager) {
-    document.getElementById('add-card').style.display = '';
-    const sel = document.getElementById('f-course');
-    sel.innerHTML = manageableCourses.map(c => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('');
+    document.getElementById('new-btn').style.display = '';
   } else {
     document.getElementById('viewonly-note').style.display = '';
   }
   loadRows();
 }
 
-// ── Add ──
-async function addInteraction() {
-  const err = document.getElementById('add-error');
-  const ok  = document.getElementById('add-success');
-  err.style.display = ok.style.display = 'none';
+// ── List ──
+async function loadRows() {
+  const tbody = document.getElementById('rows');
 
+  // Submission counts (one read; RLS scopes what each role can see).
+  countsByInteraction = {};
+  const { data: reps } = await db.from('preflight_interaction_reports').select('interaction_id');
+  (reps || []).forEach(r => { countsByInteraction[r.interaction_id] = (countsByInteraction[r.interaction_id] || 0) + 1; });
+
+  const { data, error } = await db.from('interactions')
+    .select('id, course_id, title, description, artifact_url, is_published')
+    .order('course_id').order('title');
+
+  if (error) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--red)">Error: ${esc(error.message)}</td></tr>`; return; }
+  if (!data?.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">No interactions yet. Click “New interaction” to add one.</td></tr>'; return; }
+
+  // Stash full rows so the edit modal can read them without another fetch.
+  window._interactions = {};
+  tbody.innerHTML = '';
+  data.forEach(it => {
+    window._interactions[it.id] = it;
+    const count = countsByInteraction[it.id] || 0;
+    const status = it.is_published
+      ? '<span class="score-badge full">Published</span>'
+      : '<span class="score-badge pending">Draft</span>';
+    const subCell = count
+      ? `<button class="btn btn-secondary btn-sm" onclick="openSubmissions('${esc(it.id)}','${esc(it.title)}')">View ${count}</button>`
+      : '<span style="color:var(--muted)">0</span>';
+    const manage = isManager ? `
+      <button class="btn btn-secondary btn-sm" onclick="openEditModal('${esc(it.id)}')">Edit</button>
+      <button class="btn btn-secondary btn-sm" onclick="togglePublish('${esc(it.id)}',${it.is_published})">${it.is_published ? 'Unpublish' : 'Publish'}</button>
+      <button class="btn btn-danger btn-sm" onclick="removeInteraction('${esc(it.id)}','${esc(it.title)}')">Delete</button>` : '';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><code>${esc(it.id)}</code></td>
+      <td>${esc(COURSE_TITLES[it.course_id] || it.course_id)}</td>
+      <td>${esc(it.title)}</td>
+      <td>${status}</td>
+      <td>${subCell}</td>
+      <td style="white-space:nowrap; display:flex; gap:6px; flex-wrap:wrap">${manage}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Add / Edit modal ──
+function openEditModal(id) {
+  editingId = id;
+  const err = document.getElementById('edit-error'); err.style.display = 'none';
+  const courseSel = document.getElementById('f-course');
+  courseSel.innerHTML = manageableCourses.map(c => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('');
+
+  const idField = document.getElementById('f-id');
+  const hint = document.getElementById('f-id-hint');
+
+  if (id) {
+    const it = window._interactions[id];
+    document.getElementById('edit-modal-title').textContent = 'Edit interaction';
+    courseSel.value = it.course_id;
+    idField.value = it.id;
+    idField.disabled = true;                       // the slug is the PK + referenced by reports
+    hint.textContent = 'The id cannot be changed after creation.';
+    document.getElementById('f-title').value = it.title;
+    document.getElementById('f-desc').value  = it.description || '';
+    document.getElementById('f-url').value   = it.artifact_url || '';
+    document.getElementById('f-pub').checked = it.is_published;
+  } else {
+    document.getElementById('edit-modal-title').textContent = 'New interaction';
+    idField.disabled = false;
+    hint.textContent = 'Lowercase letters, numbers, hyphens only.';
+    // Default placeholder-style starting text (intentionally invalid until edited).
+    idField.value = 'lesson-XX-topic';
+    document.getElementById('f-title').value = 'Lesson XX -- Long Topic';
+    document.getElementById('f-desc').value = '';
+    document.getElementById('f-url').value = '';
+    document.getElementById('f-pub').checked = false;
+  }
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+async function saveInteraction() {
+  const err = document.getElementById('edit-error'); err.style.display = 'none';
   const id    = document.getElementById('f-id').value.trim();
   const title = document.getElementById('f-title').value.trim();
   const course_id = document.getElementById('f-course').value;
@@ -191,63 +325,34 @@ async function addInteraction() {
   const artifact_url = document.getElementById('f-url').value.trim() || null;
   const is_published = document.getElementById('f-pub').checked;
 
-  if (!/^[a-z0-9-]+$/.test(id)) { err.textContent = 'Id must be lowercase letters, numbers, and hyphens only.'; err.style.display = ''; return; }
-  if (!title) { err.textContent = 'Title is required.'; err.style.display = ''; return; }
+  if (!editingId && !/^[a-z0-9-]+$/.test(id)) {
+    err.textContent = 'Id must be lowercase letters, numbers, and hyphens only (replace the XX placeholder).';
+    err.style.display = ''; return;
+  }
+  if (!title || title === 'Lesson XX -- Long Topic') { err.textContent = 'Enter a real title.'; err.style.display = ''; return; }
 
-  const btn = document.getElementById('add-btn');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Adding…';
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving…';
 
-  const { error } = await db.from('interactions')
-    .insert({ id, course_id, title, description, artifact_url, is_published });
+  let error;
+  if (editingId) {
+    ({ error } = await db.from('interactions')
+      .update({ course_id, title, description, artifact_url, is_published })
+      .eq('id', editingId));
+  } else {
+    ({ error } = await db.from('interactions')
+      .insert({ id, course_id, title, description, artifact_url, is_published }));
+  }
 
-  btn.disabled = false; btn.textContent = 'Add interaction';
-
+  btn.disabled = false; btn.textContent = 'Save';
   if (error) {
     err.textContent = error.code === '23505'
       ? `An interaction with id “${id}” already exists.`
-      : 'Could not add: ' + error.message;
+      : 'Could not save: ' + error.message;
     err.style.display = ''; return;
   }
-  ok.textContent = `Added “${title}”.`; ok.style.display = '';
-  ['f-id','f-title','f-desc','f-url'].forEach(f => document.getElementById(f).value = '');
-  document.getElementById('f-pub').checked = false;
+  closeModal('edit-modal');
   loadRows();
-}
-
-// ── List + manage ──
-async function loadRows() {
-  const tbody = document.getElementById('rows');
-  const { data, error } = await db.from('interactions')
-    .select('id, course_id, title, artifact_url, is_published')
-    .order('course_id').order('title');
-
-  if (error) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--red)">Error: ${esc(error.message)}</td></tr>`; return; }
-  if (!data?.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">No interactions yet.</td></tr>'; return; }
-
-  tbody.innerHTML = '';
-  data.forEach(it => {
-    const tr = document.createElement('tr');
-    const status = it.is_published
-      ? '<span class="score-badge full">Published</span>'
-      : '<span class="score-badge pending">Draft</span>';
-    const artifact = it.artifact_url
-      ? `<a href="${esc(it.artifact_url)}" target="_blank" rel="noopener">link ↗</a>`
-      : '<span style="color:var(--muted)">—</span>';
-    const actions = isManager ? `
-      <button class="btn btn-secondary btn-sm" onclick="togglePublish('${esc(it.id)}', ${it.is_published})">
-        ${it.is_published ? 'Unpublish' : 'Publish'}
-      </button>
-      <button class="btn btn-danger btn-sm" onclick="removeInteraction('${esc(it.id)}', '${esc(it.title)}')">Delete</button>
-    ` : '';
-    tr.innerHTML = `
-      <td><code>${esc(it.id)}</code></td>
-      <td>${esc(COURSE_TITLES[it.course_id] || it.course_id)}</td>
-      <td>${esc(it.title)}</td>
-      <td>${status}</td>
-      <td>${artifact}</td>
-      <td style="white-space:nowrap; display:flex; gap:6px">${actions}</td>`;
-    tbody.appendChild(tr);
-  });
 }
 
 async function togglePublish(id, current) {
@@ -263,14 +368,56 @@ async function removeInteraction(id, title) {
   loadRows();
 }
 
-// ── Init: resume an existing session if present ──
+// ── Submissions ──
+async function openSubmissions(id, title) {
+  document.getElementById('subs-title').textContent = `Submissions — ${title}`;
+  const body = document.getElementById('subs-body');
+  body.innerHTML = '<div style="color:var(--muted)">Loading…</div>';
+  document.getElementById('subs-modal').classList.add('open');
+
+  // RLS scopes rows: managers/directors see all; instructors see their sections.
+  const { data, error } = await db.from('preflight_interaction_reports')
+    .select('student_id, report_markdown, created_at, updated_at, students(name, section_id)')
+    .eq('interaction_id', id);
+
+  if (error) { body.innerHTML = `<div class="alert alert-error">Could not load: ${esc(error.message)}</div>`; return; }
+  if (!data?.length) { body.innerHTML = '<div style="color:var(--muted)">No submissions yet.</div>'; return; }
+
+  // Sort by section then student name.
+  data.sort((a, b) => {
+    const sa = a.students?.section_id || '', sb = b.students?.section_id || '';
+    if (sa !== sb) return sa.localeCompare(sb);
+    return (a.students?.name || '').localeCompare(b.students?.name || '');
+  });
+
+  body.innerHTML = `<div style="font-size:0.85em; color:var(--muted); margin-bottom:14px">${data.length} submission${data.length !== 1 ? 's' : ''}</div>`;
+  data.forEach(r => {
+    const when = r.updated_at ? new Date(r.updated_at).toLocaleString() : '';
+    const card = document.createElement('div');
+    card.className = 'submission-card';
+    // Render the stored Markdown report — sanitized before it touches innerHTML.
+    const rendered = DOMPurify.sanitize(marked.parse(r.report_markdown || ''));
+    card.innerHTML = `
+      <div class="submission-meta">
+        <strong>${esc(r.students?.name || ('Student ' + r.student_id))}</strong>
+        &nbsp;·&nbsp; Section ${esc(r.students?.section_id || '—')}
+        &nbsp;·&nbsp; ${esc(when)}
+      </div>
+      <div class="report-render">${rendered}</div>`;
+    body.appendChild(card);
+  });
+}
+
+// Close a modal when clicking the dark overlay (but not the dialog itself).
+document.querySelectorAll('.modal-overlay').forEach(ov => {
+  ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); });
+});
+
+// ── Init ──
 (async function init() {
   const { data: { session } } = await db.auth.getSession();
-  if (session && await loadInstructor()) {
-    enterMain();
-  } else {
-    showScreen('screen-login');
-  }
+  if (session && await loadInstructor()) enterMain();
+  else showScreen('screen-login');
 })();
 </script>
 </body>
