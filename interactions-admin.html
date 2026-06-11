@@ -262,12 +262,12 @@ async function loadRows() {
       ? '<span class="score-badge full">Published</span>'
       : '<span class="score-badge pending">Draft</span>';
     const subCell = count
-      ? `<button class="btn btn-secondary btn-sm" onclick="openSubmissions('${esc(it.id)}','${esc(it.title)}')">View ${count}</button>`
+      ? `<button class="btn btn-secondary btn-sm" data-action="view" data-id="${esc(it.id)}">View ${count}</button>`
       : '<span style="color:var(--muted)">0</span>';
     const manage = isManager ? `
-      <button class="btn btn-secondary btn-sm" onclick="openEditModal('${esc(it.id)}')">Edit</button>
-      <button class="btn btn-secondary btn-sm" onclick="togglePublish('${esc(it.id)}',${it.is_published})">${it.is_published ? 'Unpublish' : 'Publish'}</button>
-      <button class="btn btn-danger btn-sm" onclick="removeInteraction('${esc(it.id)}','${esc(it.title)}')">Delete</button>` : '';
+      <button class="btn btn-secondary btn-sm" data-action="edit" data-id="${esc(it.id)}">Edit</button>
+      <button class="btn btn-secondary btn-sm" data-action="publish" data-id="${esc(it.id)}">${it.is_published ? 'Unpublish' : 'Publish'}</button>
+      <button class="btn btn-danger btn-sm" data-action="delete" data-id="${esc(it.id)}">Delete</button>` : '';
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -280,6 +280,22 @@ async function loadRows() {
     tbody.appendChild(tr);
   });
 }
+
+// One delegated handler for all row actions — avoids inline onclick string
+// interpolation, which breaks on titles containing quotes/apostrophes.
+document.getElementById('rows').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const it = (window._interactions || {})[id];
+  if (!it) return;
+  switch (btn.dataset.action) {
+    case 'edit':    openEditModal(id); break;
+    case 'publish': togglePublish(id, it.is_published); break;
+    case 'delete':  removeInteraction(id, it.title); break;
+    case 'view':    openSubmissions(id, it.title); break;
+  }
+});
 
 // ── Add / Edit modal ──
 function openEditModal(id) {
@@ -376,22 +392,32 @@ async function openSubmissions(id, title) {
   document.getElementById('subs-modal').classList.add('open');
 
   // RLS scopes rows: managers/directors see all; instructors see their sections.
-  const { data, error } = await db.from('preflight_interaction_reports')
-    .select('student_id, report_markdown, created_at, updated_at, students(name, section_id)')
+  // Two-step fetch (reports, then students) instead of PostgREST embedding,
+  // which can fail if the schema cache hasn't picked up the new foreign key.
+  const { data: reps, error } = await db.from('preflight_interaction_reports')
+    .select('student_id, report_markdown, created_at, updated_at')
     .eq('interaction_id', id);
 
   if (error) { body.innerHTML = `<div class="alert alert-error">Could not load: ${esc(error.message)}</div>`; return; }
-  if (!data?.length) { body.innerHTML = '<div style="color:var(--muted)">No submissions yet.</div>'; return; }
+  if (!reps?.length) { body.innerHTML = '<div style="color:var(--muted)">No submissions yet.</div>'; return; }
+
+  // Attach each report's student record.
+  const sids = [...new Set(reps.map(r => r.student_id))];
+  const { data: studs } = await db.from('students')
+    .select('student_id, name, section_id').in('student_id', sids);
+  const smap = {};
+  (studs || []).forEach(s => smap[s.student_id] = s);
+  reps.forEach(r => r._student = smap[r.student_id] || {});
 
   // Sort by section then student name.
-  data.sort((a, b) => {
-    const sa = a.students?.section_id || '', sb = b.students?.section_id || '';
+  reps.sort((a, b) => {
+    const sa = a._student.section_id || '', sb = b._student.section_id || '';
     if (sa !== sb) return sa.localeCompare(sb);
-    return (a.students?.name || '').localeCompare(b.students?.name || '');
+    return (a._student.name || '').localeCompare(b._student.name || '');
   });
 
-  body.innerHTML = `<div style="font-size:0.85em; color:var(--muted); margin-bottom:14px">${data.length} submission${data.length !== 1 ? 's' : ''}</div>`;
-  data.forEach(r => {
+  body.innerHTML = `<div style="font-size:0.85em; color:var(--muted); margin-bottom:14px">${reps.length} submission${reps.length !== 1 ? 's' : ''}</div>`;
+  reps.forEach(r => {
     const when = r.updated_at ? new Date(r.updated_at).toLocaleString() : '';
     const card = document.createElement('div');
     card.className = 'submission-card';
@@ -399,8 +425,8 @@ async function openSubmissions(id, title) {
     const rendered = DOMPurify.sanitize(marked.parse(r.report_markdown || ''));
     card.innerHTML = `
       <div class="submission-meta">
-        <strong>${esc(r.students?.name || ('Student ' + r.student_id))}</strong>
-        &nbsp;·&nbsp; Section ${esc(r.students?.section_id || '—')}
+        <strong>${esc(r._student.name || ('Student ' + r.student_id))}</strong>
+        &nbsp;·&nbsp; Section ${esc(r._student.section_id || '—')}
         &nbsp;·&nbsp; ${esc(when)}
       </div>
       <div class="report-render">${rendered}</div>`;
