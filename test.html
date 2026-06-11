@@ -29,10 +29,21 @@
       display: block;
       border: 0;
     }
+    #banner {
+      display: none;
+      background: #1f6feb;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+    }
+    #banner.show { display: block; }
   </style>
 </head>
 <body>
   <div class="container">
+    <div id="banner"></div>
     <h1>Lesson 02 Preflight — Electric Charge &amp; Coulomb's Law</h1>
     <div class="embed-wrap">
       <iframe
@@ -45,5 +56,28 @@
         allowfullscreen></iframe>
     </div>
   </div>
+
+  <script>
+    // Read data passed in the URL and show it at the top — no reload, no server.
+    // Supports BOTH styles:
+    //   query string:  test.html?score=5&name=Cadet+Smith   (hits server logs)
+    //   hash fragment: test.html#score=5&name=Cadet+Smith   (never leaves browser — better for PII)
+    (function () {
+      // hash takes priority; fall back to query string
+      var raw = location.hash ? location.hash.slice(1) : location.search.slice(1);
+      if (!raw) return;
+
+      var params = new URLSearchParams(raw);
+      var parts = [];
+      params.forEach(function (value, key) {
+        parts.push(key + ': ' + value);
+      });
+      if (!parts.length) return;
+
+      var banner = document.getElementById('banner');
+      banner.textContent = parts.join('  •  ');
+      banner.classList.add('show');
+    })();
+  </script>
 </body>
 </html>
