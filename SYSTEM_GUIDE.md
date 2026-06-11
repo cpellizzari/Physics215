@@ -119,6 +119,45 @@ The student's assignment page will automatically use the extended date. The exte
 
 ---
 
+## Lesson Interactions (Claude Artifacts)
+
+*Added 2026-06-11 by Matthew Recker.*
+
+A **lesson interaction** is an interactive Claude artifact (hosted on claude.ai) that
+students work through. When they finish, the artifact sends a report back to the site,
+saved to each student's record. This is separate from the assignments system.
+
+### Adding / managing interactions (Course Directors & Admins)
+
+Use the **Manage Interactions** page: `…/interactions-admin.html`
+
+1. Sign in with your instructor email.
+2. Click **+ New interaction** and fill in:
+   - **Interaction id (slug)** — a stable identifier like `lesson-02-charge`
+     (lowercase, numbers, hyphens). **This must exactly match the slug the artifact uses
+     in its submit link** — coordinate with whoever built the artifact.
+   - **Title**, **Course**, optional **Description**, and the **Artifact URL** (the
+     claude.ai link students open).
+   - Check **Published** to make it visible to students.
+3. The list shows every interaction with its submission count. Use **Edit**, **Publish/
+   Unpublish**, or **Delete** (deleting also removes all its student reports).
+
+> The slug is the link between the artifact and this site. If they don't match, student
+> submissions are rejected. The slug can't be changed after creation.
+
+### Viewing student reports
+
+1. On the Manage Interactions page, click **View N** in the Submissions column.
+2. Pick a **section**, then a **student** — the page renders that student's report.
+   (Directors/admins see all sections; instructors see only their own.)
+
+### Student experience
+
+Students open `…/interactions.html`, click **Launch** on a lesson, complete the artifact,
+then sign in on the submit page to save their report. They can re-submit to overwrite.
+
+---
+
 ## Running the Claude Analysis Skill (`/preflight-analyze`)
 
 The skill reads student submissions, checks them for physics misconceptions, writes suggested scores to Supabase, and prints a per-instructor report. **Only Course Directors and System Admins run this skill** — not individual instructors. A CD runs it once for all M-day sections and once for all T-day sections. Each instructor then sees their own section's results in the Report tab.
