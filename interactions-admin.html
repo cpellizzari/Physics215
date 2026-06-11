@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage Lesson Interactions</title>
+<link rel="stylesheet" href="css/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <span class="logo">Manage Interactions</span>
+  <span class="subtitle">USAFA</span>
+  <span class="spacer"></span>
+  <span class="user-chip" id="header-name" style="display:none"></span>
+</header>
+
+<!-- ── Login ── -->
+<div id="screen-login" class="id-screen" style="display:none">
+  <div class="id-card">
+    <div class="crest">⚙️</div>
+    <h1>Instructor sign in</h1>
+    <p>Log in with your instructor email to manage lesson interactions.</p>
+    <div id="login-error" class="alert alert-error" style="display:none"></div>
+    <div style="text-align:left;margin-bottom:12px">
+      <label>Email</label>
+      <input type="email" id="email-input" placeholder="you@usafa.edu" autocomplete="username">
+    </div>
+    <div style="text-align:left;margin-bottom:18px">
+      <label>Password</label>
+      <input type="password" id="pw-input" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" id="login-btn" onclick="login()" style="width:100%;justify-content:center;padding:12px">Sign In</button>
+  </div>
+</div>
+
+<!-- ── Main ── -->
+<div id="screen-main" class="page-wide" style="display:none">
+
+  <!-- Add form (managers only) -->
+  <div class="card" id="add-card" style="display:none">
+    <div class="card-title">Add a lesson interaction</div>
+    <div class="card-meta">The <strong>id</strong> is the slug the artifact embeds in its submit link. Every student doing this lesson shares it — keep it stable.</div>
+    <div id="add-error" class="alert alert-error" style="display:none"></div>
+    <div id="add-success" class="alert alert-success" style="display:none"></div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+      <div class="field">
+        <label>Course</label>
+        <select id="f-course"></select>
+      </div>
+      <div class="field">
+        <label>Interaction id (slug)</label>
+        <input type="text" id="f-id" placeholder="lesson-02-charge">
+        <div class="field-hint">Lowercase letters, numbers, hyphens only.</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="f-title" placeholder="Lesson 02 — Electric Charge &amp; Coulomb's Law">
+    </div>
+    <div class="field">
+      <label>Description (optional)</label>
+      <textarea id="f-desc" placeholder="Short description shown to students"></textarea>
+    </div>
+    <div class="field">
+      <label>Artifact URL</label>
+      <input type="text" id="f-url" placeholder="https://claude.ai/public/artifacts/...">
+      <div class="field-hint">The link students open to launch the activity.</div>
+    </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; font-weight:600; color:var(--text)">
+        <input type="checkbox" id="f-pub" style="width:auto"> Publish immediately (visible to students)
+      </label>
+    </div>
+    <button class="btn btn-primary" id="add-btn" onclick="addInteraction()">Add interaction</button>
+  </div>
+
+  <div id="viewonly-note" class="alert alert-info" style="display:none">
+    You’re signed in as an instructor. Only course directors and admins can add or edit interactions — the list below is read-only for you.
+  </div>
+
+  <!-- Existing interactions -->
+  <h2 style="margin:24px 0 12px">Existing interactions</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Id</th><th>Course</th><th>Title</th><th>Status</th><th>Artifact</th><th></th></tr>
+      </thead>
+      <tbody id="rows"><tr><td colspan="6" style="color:var(--muted)">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const COURSE_TITLES = { 'phys-215': 'Physics 215', 'phys-110': 'Physics 110' };
+
+let instructor = null;       // { id, name, is_director, is_global_admin }
+let manageableCourses = [];  // [{ id, title }] this user may add interactions to
+let isManager = false;
+
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showScreen(id) {
+  ['screen-login','screen-main'].forEach(s =>
+    document.getElementById(s).style.display = s === id ? '' : 'none');
+}
+
+// ── Login ──
+document.getElementById('pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+async function login() {
+  const email = document.getElementById('email-input').value.trim();
+  const pw    = document.getElementById('pw-input').value;
+  const err   = document.getElementById('login-error');
+  err.style.display = 'none';
+  if (!email || !pw) { err.textContent = 'Enter your email and password.'; err.style.display = ''; return; }
+
+  const btn = document.getElementById('login-btn');
+  btn.innerHTML = '<span class="spinner"></span>'; btn.disabled = true;
+
+  const { error: authErr } = await db.auth.signInWithPassword({ email, password: pw });
+  btn.innerHTML = 'Sign In'; btn.disabled = false;
+  if (authErr) { err.textContent = 'Sign-in failed. Check your email and password.'; err.style.display = ''; return; }
+
+  const ok = await loadInstructor();
+  if (!ok) {
+    err.textContent = 'This account is not an instructor. Contact an administrator.';
+    err.style.display = '';
+    await db.auth.signOut(); return;
+  }
+  enterMain();
+}
+
+// ── Resolve instructor + which courses they can manage ──
+async function loadInstructor() {
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return false;
+
+  const { data: instr } = await db.from('instructors')
+    .select('id, name, is_director, is_global_admin').eq('id', user.id).single();
+  if (!instr) return false;
+  instructor = instr;
+
+  // Courses list (fallback to known titles if the courses table read is empty)
+  let { data: courses } = await db.from('courses').select('id, title').order('id');
+  if (!courses?.length) courses = Object.keys(COURSE_TITLES).map(id => ({ id, title: COURSE_TITLES[id] }));
+
+  if (instr.is_global_admin || instr.is_director) {
+    // Legacy/global managers can add to any course.
+    manageableCourses = courses;
+  } else {
+    const { data: access } = await db.from('instructor_course_access')
+      .select('course_id, role').eq('instructor_id', user.id);
+    const directorCourseIds = (access || []).filter(a => a.role === 'director').map(a => a.course_id);
+    manageableCourses = courses.filter(c => directorCourseIds.includes(c.id));
+  }
+  isManager = manageableCourses.length > 0;
+  return true;
+}
+
+function enterMain() {
+  document.getElementById('header-name').textContent = instructor.name;
+  document.getElementById('header-name').style.display = '';
+  showScreen('screen-main');
+
+  if (isManager) {
+    document.getElementById('add-card').style.display = '';
+    const sel = document.getElementById('f-course');
+    sel.innerHTML = manageableCourses.map(c => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('');
+  } else {
+    document.getElementById('viewonly-note').style.display = '';
+  }
+  loadRows();
+}
+
+// ── Add ──
+async function addInteraction() {
+  const err = document.getElementById('add-error');
+  const ok  = document.getElementById('add-success');
+  err.style.display = ok.style.display = 'none';
+
+  const id    = document.getElementById('f-id').value.trim();
+  const title = document.getElementById('f-title').value.trim();
+  const course_id = document.getElementById('f-course').value;
+  const description = document.getElementById('f-desc').value.trim() || null;
+  const artifact_url = document.getElementById('f-url').value.trim() || null;
+  const is_published = document.getElementById('f-pub').checked;
+
+  if (!/^[a-z0-9-]+$/.test(id)) { err.textContent = 'Id must be lowercase letters, numbers, and hyphens only.'; err.style.display = ''; return; }
+  if (!title) { err.textContent = 'Title is required.'; err.style.display = ''; return; }
+
+  const btn = document.getElementById('add-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Adding…';
+
+  const { error } = await db.from('interactions')
+    .insert({ id, course_id, title, description, artifact_url, is_published });
+
+  btn.disabled = false; btn.textContent = 'Add interaction';
+
+  if (error) {
+    err.textContent = error.code === '23505'
+      ? `An interaction with id “${id}” already exists.`
+      : 'Could not add: ' + error.message;
+    err.style.display = ''; return;
+  }
+  ok.textContent = `Added “${title}”.`; ok.style.display = '';
+  ['f-id','f-title','f-desc','f-url'].forEach(f => document.getElementById(f).value = '');
+  document.getElementById('f-pub').checked = false;
+  loadRows();
+}
+
+// ── List + manage ──
+async function loadRows() {
+  const tbody = document.getElementById('rows');
+  const { data, error } = await db.from('interactions')
+    .select('id, course_id, title, artifact_url, is_published')
+    .order('course_id').order('title');
+
+  if (error) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--red)">Error: ${esc(error.message)}</td></tr>`; return; }
+  if (!data?.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">No interactions yet.</td></tr>'; return; }
+
+  tbody.innerHTML = '';
+  data.forEach(it => {
+    const tr = document.createElement('tr');
+    const status = it.is_published
+      ? '<span class="score-badge full">Published</span>'
+      : '<span class="score-badge pending">Draft</span>';
+    const artifact = it.artifact_url
+      ? `<a href="${esc(it.artifact_url)}" target="_blank" rel="noopener">link ↗</a>`
+      : '<span style="color:var(--muted)">—</span>';
+    const actions = isManager ? `
+      <button class="btn btn-secondary btn-sm" onclick="togglePublish('${esc(it.id)}', ${it.is_published})">
+        ${it.is_published ? 'Unpublish' : 'Publish'}
+      </button>
+      <button class="btn btn-danger btn-sm" onclick="removeInteraction('${esc(it.id)}', '${esc(it.title)}')">Delete</button>
+    ` : '';
+    tr.innerHTML = `
+      <td><code>${esc(it.id)}</code></td>
+      <td>${esc(COURSE_TITLES[it.course_id] || it.course_id)}</td>
+      <td>${esc(it.title)}</td>
+      <td>${status}</td>
+      <td>${artifact}</td>
+      <td style="white-space:nowrap; display:flex; gap:6px">${actions}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function togglePublish(id, current) {
+  const { error } = await db.from('interactions').update({ is_published: !current }).eq('id', id);
+  if (error) alert('Could not update: ' + error.message);
+  loadRows();
+}
+
+async function removeInteraction(id, title) {
+  if (!confirm(`Delete interaction “${title}”?\n\nThis also deletes every student report submitted for it. This cannot be undone.`)) return;
+  const { error } = await db.from('interactions').delete().eq('id', id);
+  if (error) alert('Could not delete: ' + error.message);
+  loadRows();
+}
+
+// ── Init: resume an existing session if present ──
+(async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session && await loadInstructor()) {
+    enterMain();
+  } else {
+    showScreen('screen-login');
+  }
+})();
+</script>
+</body>
+</html>
