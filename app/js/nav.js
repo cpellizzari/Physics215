@@ -48,6 +48,7 @@ export function renderNav(ctx, opts = {}) {
   // Faculty course switcher (only when more than one course is accessible)
   const switcherHTML = (ctx.role === 'faculty' && ctx.courses.length > 1) ? `
     <div class="course-switch" role="tablist" aria-label="Course">
+      <span class="cs-ic">${iconHTML('course', '📚', 'ic')}</span>
       ${ctx.courses.map(c => `
         <button class="course-pill${c.course_id === ctx.currentCourse ? ' active' : ''}"
           data-course="${esc(c.course_id)}">${esc(c.course_title || c.course_id)}</button>`).join('')}
@@ -60,7 +61,7 @@ export function renderNav(ctx, opts = {}) {
         <span class="brand-mark">${iconHTML('atom', '⚛️', 'ic')}</span>
         <span>Preflights${courseTitle ? `<span class="brand-sub">${esc(courseTitle)}</span>` : ''}</span>
       </a>
-      <button class="nav-burger" aria-label="Menu" data-burger>☰</button>
+      <button class="nav-burger" aria-label="Menu" data-burger>${iconHTML('menu', '☰', 'ic')}</button>
       <nav class="nav-links" id="nav-links">${linksHTML}</nav>
       <span class="nav-spacer"></span>
       <div class="nav-right">
@@ -73,8 +74,9 @@ export function renderNav(ctx, opts = {}) {
           </button>
           <div class="menu-pop" id="user-menu-pop">
             <div class="menu-head">
-              <div class="nm">${esc(name)}</div>
-              <div class="rl">${esc(roleLabel)}${courseTitle ? ' · ' + esc(courseTitle) : ''}</div>
+              <span class="mh-ic">${iconHTML('user', '👤', 'ic')}</span>
+              <div><div class="nm">${esc(name)}</div>
+                <div class="rl">${esc(roleLabel)}${courseTitle ? ' · ' + esc(courseTitle) : ''}</div></div>
             </div>
             <button class="menu-item danger" data-signout>
               ${iconHTML('signout', '🚪', 'ic')}<span>Sign out</span>
@@ -86,6 +88,24 @@ export function renderNav(ctx, opts = {}) {
 
   wireNav(ctx, mount, onCourseChange);
   updateToggleButtons();
+  renderFooter();
+}
+
+/** Site footer with the required Flaticon attribution. Idempotent — safe to call again. */
+export function renderFooter() {
+  if (document.getElementById('site-footer')) return;
+  const f = document.createElement('footer');
+  f.id = 'site-footer';
+  f.className = 'site-footer';
+  f.innerHTML = `
+    <div class="footer-inner">
+      <span>Preflights · USAFA Physics</span>
+      <span class="grow"></span>
+      <span>Icons by
+        <a href="https://www.flaticon.com/authors/freepik" target="_blank" rel="noopener">Freepik</a>
+        on <a href="https://www.flaticon.com/" target="_blank" rel="noopener">Flaticon</a></span>
+    </div>`;
+  document.body.appendChild(f);
 }
 
 function wireNav(ctx, mount, onCourseChange) {

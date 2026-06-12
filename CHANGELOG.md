@@ -10,6 +10,32 @@ Newest entries first. Dates are `YYYY-MM-DD`.
 
 ## 2026-06-12 — Matthew Recker
 
+### Changed — all 35 icons wired in; navbar logo/controls refined
+
+Matthew added the real Flaticon PNGs, so the portal now uses the whole set (previously
+~15 of 35 were referenced; sun/moon and others were dead). Wired the remainder into natural
+homes: **sun/moon** → theme toggle (`theme.js`), **menu** → mobile burger, **user** → the
+account dropdown header, **course** → the course switcher, **success/warning/error/info** →
+`.alert-*` glyphs (CSS `background-image`, resolved relative to the stylesheet so it works at
+any page depth), **submissions/grades/class/completion** → faculty dashboard, **due-soon/
+done/progress/rocket** → student dashboard, and the physics set **atom/bolt/wave/magnet** →
+a decorative motif under the login card. Inventory tracked in
+[`app/media/icons/ICONS.md`](app/media/icons/ICONS.md) (name · description · search terms ·
+status · where-used) — the source of truth for adding/retiring icons. The old AI
+search-prompt file was removed.
+
+Navbar tweaks per request: **bigger, box-less brand logo** pinned left; **box-less** theme
+toggle and user chip pinned right (backgrounds/borders removed, subtle hover only).
+
+### Added — Flaticon attribution footer
+
+The portal icons are all from **Freepik on Flaticon**, whose free license requires a visible
+credit. Added a shared site footer (rendered by `renderNav` → `renderFooter` in
+[`app/js/nav.js`](app/js/nav.js), styled in [`app/css/styles.css`](app/css/styles.css)) that
+appears on every page displaying the icons, linking to
+<https://www.flaticon.com/authors/freepik>. Login/router pages use only emoji, so they carry
+no footer.
+
 ### Changed — cleaner, modern portal navbar
 
 Restyled the `app/` top navigation after Featurebase's clean aesthetic: a light,

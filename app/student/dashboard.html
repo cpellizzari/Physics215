@@ -95,10 +95,10 @@
     function upcomingSection(items) {
       const body = items.length
         ? `<div class="list">${items.slice(0, 6).map(assignmentItem).join('')}</div>`
-        : `<div class="empty-state"><div class="es-ic">✅</div><h3>All caught up</h3>
+        : `<div class="empty-state"><div class="es-ic">${iconHTML('rocket', '🚀', 'ic')}</div><h3>All caught up</h3>
              <p>You have no open assignments right now. Nice work.</p></div>`;
       return `<section class="dash-section">
-        <div class="section-head"><h2>Up next</h2>
+        <div class="section-head"><h2>${iconHTML('due-soon', '⏳', 'ic')} Up next</h2>
           ${items.length ? `<span class="count-pill">${items.length}</span>` : ''}
           <span class="grow"></span>
           <a class="btn btn-ghost btn-sm" href="assignments.html">View all</a>
@@ -138,7 +138,7 @@
           <h3>All interactions complete</h3><p>You've finished every published interaction.</p></div>`) + doneHTML;
       }
       return `<section class="dash-section">
-        <div class="section-head"><h2>Lesson interactions</h2>
+        <div class="section-head"><h2>${iconHTML('progress', '📈', 'ic')} Lesson interactions</h2>
           ${todo.length ? `<span class="count-pill">${todo.length} to do</span>` : ''}
           <span class="grow"></span>
           <a class="btn btn-ghost btn-sm" href="interactions.html">View all</a>
@@ -153,7 +153,7 @@
         return `<span class="score-badge ${cls}">${a.score.total_score}/${a.score.max_total}</span>`;
       };
       return `<section class="dash-section">
-        <div class="section-head"><h2>Recently graded</h2><span class="count-pill">${items.length}</span></div>
+        <div class="section-head"><h2>${iconHTML('done', '✅', 'ic')} Recently graded</h2><span class="count-pill">${items.length}</span></div>
         <div class="list">${items.slice(0, 5).map(a => `
           <a class="list-item" href="assignments.html?a=${encodeURIComponent(a.id)}">
             <span class="status-dot green"></span>

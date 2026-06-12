@@ -4,6 +4,8 @@
 // <head> (see THEME_HEAD_SNIPPET below / the copy pasted into every HTML head) so there
 // is no flash of the wrong theme. This module only wires up runtime toggling.
 
+import { iconHTML } from './util.js';
+
 const KEY = 'cp.theme';
 
 /** Reference copy of the no-flash snippet that must live inline in every <head>,
@@ -37,14 +39,15 @@ export function toggleTheme() {
   setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
 }
 
-/** Sync any [data-theme-toggle] button's icon/label to the active theme. */
+/** Sync any [data-theme-toggle] button's icon/label to the active theme.
+ *  Shows the icon of the theme it will switch TO (sun in dark mode, moon in light). */
 export function updateToggleButtons() {
   const dark = currentTheme() === 'dark';
   document.querySelectorAll('[data-theme-toggle]').forEach(btn => {
     btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
     btn.title = dark ? 'Light mode' : 'Dark mode';
     const span = btn.querySelector('[data-theme-icon]') || btn;
-    span.textContent = dark ? '☀️' : '🌙';
+    span.innerHTML = iconHTML(dark ? 'sun' : 'moon', dark ? '☀️' : '🌙', 'ic');
   });
 }
 

@@ -127,23 +127,21 @@ body {
   border-bottom: 1px solid var(--nav-border);
 }
 .topnav-inner {
-  max-width: 1180px; margin: 0 auto;
+  max-width: 1240px; margin: 0 auto;
   display: flex; align-items: center; gap: 6px;
-  height: 60px; padding: 0 24px;
+  height: 64px; padding: 0 20px;
 }
 .topnav .brand {
-  display: flex; align-items: center; gap: 9px;
-  font-weight: 700; font-size: 1.02em; letter-spacing: -0.01em;
+  display: flex; align-items: center; gap: 11px;
+  font-weight: 700; font-size: 1.12em; letter-spacing: -0.01em;
   color: var(--text); text-decoration: none; white-space: nowrap;
+  margin-right: 4px;
 }
-.topnav .brand .brand-mark {
-  width: 28px; height: 28px; display: grid; place-items: center;
-  background: var(--nav-control-bg); border: 1px solid var(--nav-border);
-  border-radius: 8px; font-size: 0.9em;
-}
-.topnav .brand .brand-mark .ic { width: 18px; height: 18px; }
+/* bigger, box-less logo mark */
+.topnav .brand .brand-mark { display: grid; place-items: center; font-size: 1.3em; }
+.topnav .brand .brand-mark .ic { width: 38px; height: 38px; }
 .topnav .brand .brand-sub {
-  font-size: 0.72em; font-weight: 500; color: var(--muted);
+  font-size: 0.66em; font-weight: 500; color: var(--muted);
   margin-left: 9px; padding-left: 10px; border-left: 1px solid var(--nav-border);
 }
 
@@ -164,7 +162,9 @@ body {
 .nav-right  { display: flex; align-items: center; gap: 8px; }
 
 /* course switcher */
-.course-switch { display: flex; align-items: center; gap: 3px; background: var(--nav-control-bg); border: 1px solid var(--nav-border); border-radius: 999px; padding: 3px; }
+.course-switch { display: flex; align-items: center; gap: 3px; background: var(--nav-control-bg); border: 1px solid var(--nav-border); border-radius: 999px; padding: 3px 3px 3px 5px; }
+.course-switch .cs-ic { display: inline-grid; place-items: center; }
+.course-switch .cs-ic .ic { width: 16px; height: 16px; opacity: 0.75; }
 .course-pill {
   border: none; background: transparent; color: var(--muted);
   padding: 5px 13px; border-radius: 999px; font-size: 0.8em; font-weight: 600;
@@ -173,29 +173,34 @@ body {
 .course-pill:hover  { color: var(--text); }
 .course-pill.active { background: var(--card); color: var(--blue-lt); box-shadow: var(--shadow-sm); }
 
-/* theme toggle */
+/* theme toggle — box-less, just the icon */
 .theme-toggle {
   display: inline-grid; place-items: center;
-  width: 38px; height: 38px; border-radius: 10px; cursor: pointer;
-  background: var(--nav-control-bg); border: 1px solid var(--nav-border);
-  color: var(--text); font-size: 1.02em; transition: background 0.14s;
+  width: 40px; height: 40px; border-radius: 999px; cursor: pointer;
+  background: transparent; border: none;
+  color: var(--text); font-size: 1.1em; transition: background 0.14s;
 }
-.theme-toggle:hover { background: var(--nav-control-hover); }
+.theme-toggle:hover { background: var(--nav-hover-bg); }
+.theme-toggle .ic { width: 24px; height: 24px; }
 
-/* user chip + menu */
+/* user chip + menu — box-less, avatar + name */
 .user-menu { position: relative; }
 .user-chip {
   display: inline-flex; align-items: center; gap: 8px;
-  background: var(--nav-control-bg); border: 1px solid var(--nav-border); color: var(--text);
-  border-radius: 999px; padding: 4px 10px 4px 5px; cursor: pointer;
-  font-size: 0.83em; font-weight: 600; transition: background 0.14s;
+  background: transparent; border: none; color: var(--text);
+  border-radius: 999px; padding: 4px 6px; cursor: pointer;
+  font-size: 0.86em; font-weight: 600; transition: background 0.14s;
 }
-.user-chip:hover { background: var(--nav-control-hover); }
+.user-chip:hover { background: var(--nav-hover-bg); }
 .user-chip .avatar {
-  width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--blue), var(--blue-lt)); color: #fff; font-weight: 800; font-size: 0.78em;
+  width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--blue), var(--blue-lt)); color: #fff; font-weight: 800; font-size: 0.8em;
 }
 .user-chip .caret { font-size: 0.65em; color: var(--muted); }
+
+/* user dropdown header icon */
+.menu-head { display: flex; align-items: center; gap: 10px; }
+.menu-head .mh-ic .ic { width: 24px; height: 24px; }
 .menu-pop {
   position: absolute; right: 0; top: calc(100% + 10px);
   background: var(--card); color: var(--text);
@@ -217,6 +222,20 @@ body {
 /* mobile hamburger */
 .nav-burger { display: none; background: var(--nav-control-bg); border: 1px solid var(--nav-border); color: var(--text);
   width: 38px; height: 38px; border-radius: 10px; font-size: 1.15em; cursor: pointer; }
+
+/* ============================================================= *
+ *  Footer (icon attribution)                                    *
+ * ============================================================= */
+.site-footer { border-top: 1px solid var(--border); margin-top: 48px; }
+.site-footer .footer-inner {
+  max-width: 1180px; margin: 0 auto; padding: 18px 24px;
+  display: flex; gap: 6px 10px; flex-wrap: wrap; align-items: center;
+  font-size: 0.8em; color: var(--muted);
+}
+.site-footer .dot { opacity: 0.45; }
+.site-footer .grow { flex: 1; }
+.site-footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.site-footer a:hover { color: var(--text); }
 
 /* ============================================================= *
  *  Page containers                                              *
@@ -343,7 +362,8 @@ a.list-item:hover { box-shadow: var(--shadow-md); border-color: var(--blue-lt); 
  *  Empty / loading states                                       *
  * ============================================================= */
 .empty-state { text-align: center; padding: 46px 24px; color: var(--muted); }
-.empty-state .es-ic { font-size: 2.4em; margin-bottom: 10px; opacity: 0.8; }
+.empty-state .es-ic { font-size: 2.4em; margin-bottom: 10px; opacity: 0.9; }
+.empty-state .es-ic img { width: 52px; height: 52px; }
 .empty-state h3 { font-size: 1.02em; color: var(--text); margin-bottom: 5px; }
 .empty-state p  { font-size: 0.88em; max-width: 380px; margin: 0 auto; }
 
@@ -408,6 +428,15 @@ textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
 .alert-success { background: var(--alert-ok-bg);    color: var(--alert-ok-fg);    border: 1px solid var(--alert-ok-bd); }
 .alert-info    { background: var(--alert-info-bg);  color: var(--alert-info-fg);  border: 1px solid var(--alert-info-bd); }
 .alert-warn    { background: var(--alert-warn-bg);  color: var(--alert-warn-fg);  border: 1px solid var(--alert-warn-bd); }
+/* type glyphs (Flaticon PNGs; url() is relative to this stylesheet, so it resolves on
+   every page regardless of depth). The background-color set above is preserved. */
+.alert-error, .alert-success, .alert-info, .alert-warn {
+  padding-left: 42px; background-repeat: no-repeat; background-position: 14px center; background-size: 18px 18px;
+}
+.alert-error   { background-image: url(../media/icons/ic-error.png); }
+.alert-success { background-image: url(../media/icons/ic-success.png); }
+.alert-info    { background-image: url(../media/icons/ic-info.png); }
+.alert-warn    { background-image: url(../media/icons/ic-warning.png); }
 
 /* ============================================================= *
  *  Question blocks (ported assignment engine)                   *
@@ -481,6 +510,8 @@ tr:last-child td { border-bottom: none; }
 .id-card .field { text-align: left; }
 .login-foot { margin-top: 20px; font-size: 0.8em; color: var(--muted); }
 .login-theme-toggle { position: fixed; top: 16px; right: 16px; }
+.physics-strip { display: flex; gap: 22px; margin-top: 26px; opacity: 0.5; }
+.physics-strip img { width: 26px; height: 26px; }
 
 /* ============================================================= *
  *  Spinner                                                      *
