@@ -7,7 +7,14 @@ just reviews and clicks **Save**. Nothing is written automatically.
 
 ## The link
 
-**Base:** `https://dfpm-physics.github.io/Core_Preflights/interactions-admin.html`
+**Base (in-app manager):**
+`https://dfpm-physics.github.io/Core_Preflights/app/faculty/interactions.html`
+
+> The manager currently lives under `/app/` during the front-end refactor. After the app is
+> promoted to the site root, drop `/app/` → `…/Core_Preflights/faculty/interactions.html`.
+> The legacy page `…/Core_Preflights/interactions-admin.html` accepts the **same**
+> parameters and its URL never changes, so use that base instead if you'd rather have a link
+> that survives the promotion without editing.
 
 Append a query string with these parameters (URL-encode every value):
 
@@ -37,14 +44,14 @@ Slug `lesson-02-charge`, course `phys-215`, artifact at
 `https://claude.ai/public/artifacts/abc123`:
 
 ```
-https://dfpm-physics.github.io/Core_Preflights/interactions-admin.html?new=1&id=lesson-02-charge&course=phys-215&title=Lesson%2002%20%E2%80%94%20Charge%20%26%20Coulomb%27s%20Law&desc=Interactive%20intro%20to%20electric%20charge&url=https%3A%2F%2Fclaude.ai%2Fpublic%2Fartifacts%2Fabc123&pub=0
+https://dfpm-physics.github.io/Core_Preflights/app/faculty/interactions.html?new=1&id=lesson-02-charge&course=phys-215&title=Lesson%2002%20%E2%80%94%20Charge%20%26%20Coulomb%27s%20Law&desc=Interactive%20intro%20to%20electric%20charge&url=https%3A%2F%2Fclaude.ai%2Fpublic%2Fartifacts%2Fabc123&pub=0
 ```
 
 ## Build snippet (drop into your skill)
 
 ```js
 const SLUG = 'lesson-02-charge';            // pick ONE slug; use it in the artifact too
-const base = 'https://dfpm-physics.github.io/Core_Preflights/interactions-admin.html';
+const base = 'https://dfpm-physics.github.io/Core_Preflights/app/faculty/interactions.html';
 const params = new URLSearchParams({
   new: '1',
   id: SLUG,                                  // ← must match the artifact's #i=<slug> callback
@@ -74,7 +81,7 @@ re-open or resubmit it.
 ## Notes & guardrails
 
 - Only **course directors / admins** can add interactions. An instructor who opens the link
-  sees a notice instead of the form.
+  just lands on the interactions page — the create form won't open for them.
 - Nothing is saved until the director clicks **Save** — the link only prefills the form, so
   a crafted link can't write to the database on its own.
 - Keep the slug **stable**: it's the permanent id and is referenced by every student report.

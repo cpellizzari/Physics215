@@ -10,6 +10,27 @@ Newest entries first. Dates are `YYYY-MM-DD`.
 
 ## 2026-06-12 — Matthew Recker
 
+### Added — native in-app interaction manager
+
+Ported the interaction CRUD off the legacy `interactions-admin.html` into the portal:
+[`app/faculty/interactions.html`](app/faculty/interactions.html) +
+[`app/js/faculty-interactions.js`](app/js/faculty-interactions.js) now do add / edit /
+publish / unpublish / delete, per-section completion, and the per-student report viewer —
+all inside the app shell (nav, theme, course switcher). Directors manage (incl. drafts);
+instructors get a read-only published view scoped to their sections. It also honors the
+prefill query params, so the Claude artifact link can target the app page directly. The
+faculty dashboard "Manage interactions" quick-action now points here instead of opening the
+legacy page in a new tab. (The prefill doc's base URL was updated to the app manager, with a
+note on the `/app/` → root path change after promotion.)
+
+### Changed — nav links centered & text-only
+
+The top-nav links are now horizontally centered in the bar (3-zone `1fr auto 1fr` grid:
+brand hard-left, links centered, controls hard-right) and **no longer carry icons** — plain
+text labels, per preference. The brand logo, theme toggle (sun/moon), course switcher, and
+user avatar keep their icons. Freed icons (`ic-assignments`, `ic-analytics`, `ic-settings`)
+are marked available in `ICONS.md`.
+
 ### Added — prefill links for the interaction manager
 
 `interactions-admin.html` now reads a query string and auto-opens the **New interaction**

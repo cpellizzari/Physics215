@@ -16,14 +16,14 @@ retire icons — this table is the source of truth for what the UI expects.
 
 | File | Description | Flaticon search terms | Status | Used in |
 |------|-------------|-----------------------|:------:|---------|
-| `ic-dashboard.png` | Dashboard / home landing | dashboard, home, grid, layout | ✅ | Nav (both roles); **also the universal fallback icon** |
-| `ic-assignments.png` | Assignments — clipboard checklist | clipboard, checklist, assignment, tasks | ✅ | Student nav |
-| `ic-interactions.png` | AI lesson interactions — lightbulb/idea | lightbulb, idea, lesson, spark | ✅ | Nav + dashboards |
+| `ic-dashboard.png` | Dashboard / home landing | dashboard, home, grid, layout | ✅ | **Universal fallback** (shown for any missing icon) |
+| `ic-assignments.png` | Assignments — clipboard checklist | clipboard, checklist, assignment, tasks | ✅ | — (available; top nav is text-only) |
+| `ic-interactions.png` | AI lesson interactions — lightbulb/idea | lightbulb, idea, lesson, spark | ✅ | Dashboards (student/faculty) |
 | `ic-grades.png` | Grading & reports — bar chart/report | report, bar chart, grades, statistics | ✅ | Faculty "View reports" quick action |
-| `ic-roster.png` | Roster — people / ID card | roster, id card, students list, people | ✅ | Faculty nav + dashboard quick action |
+| `ic-roster.png` | Roster — people / ID card | roster, id card, students list, people | ✅ | Faculty dashboard quick action |
 | `ic-sections.png` | Class sections — groups/layers | layers, groups, sections, stack | ✅ | Faculty "Sections" stat |
 | `ic-export.png` | Export / download | download, export, save, arrow down | ✅ | Faculty "Export grades" quick action |
-| `ic-settings.png` | Settings — gear | gear, settings, cog, options | ✅ | Faculty "Admin ↗" nav link |
+| `ic-settings.png` | Settings — gear | gear, settings, cog, options | ✅ | — (available; top nav is text-only) |
 | `ic-signout.png` | Sign out — logout / exit door | logout, sign out, exit, door | ✅ | User menu |
 | `ic-user.png` | User / profile avatar | user, profile, person, account | ✅ | User-menu dropdown header |
 | `ic-course.png` | Course switcher — books/atom | books, course, education, subject | ✅ | Nav course switcher (multi-course faculty) |
@@ -37,9 +37,9 @@ retire icons — this table is the source of truth for what the UI expects.
 | `ic-award.png` | Grade earned — star/medal | medal, award, star, achievement | ✅ | Student "Average grade" stat |
 | `ic-progress.png` | Progress — gauge/ring | progress, gauge, ring, percent | ✅ | Student "Lesson interactions" heading |
 | `ic-class.png` | Class / teaching — chalkboard/podium | chalkboard, teacher, class, podium | ✅ | Faculty "Section roll-up" heading |
-| `ic-analytics.png` | Analytics — line/bar chart | analytics, chart, graph, trend | ✅ | Faculty "Report" nav |
+| `ic-analytics.png` | Analytics — line/bar chart | analytics, chart, graph, trend | ✅ | — (available; top nav is text-only) |
 | `ic-submissions.png` | Submissions inbox — tray | inbox, tray, submissions, incoming | ✅ | Faculty "Avg submitted" stat |
-| `ic-pending-grade.png` | Pending grading — pen/marker | pen, marker, grading, edit | ✅ | Faculty "Grade" nav + stat + quick action |
+| `ic-pending-grade.png` | Pending grading — pen/marker | pen, marker, grading, edit | ✅ | Faculty dashboard stat + quick action |
 | `ic-students.png` | Students count — group | group, people, students, team | ✅ | Faculty "Students" stat |
 | `ic-completion.png` | Completion rate — donut/percent | donut chart, percent, completion, pie | ✅ | Faculty interaction-completion row |
 | `ic-success.png` | Success — check | check, success, tick, ok | ✅ | `.alert-success` glyph |

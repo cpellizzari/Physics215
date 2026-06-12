@@ -80,7 +80,7 @@
         <div class="row wrap" style="gap:10px">
           ${int('grade.html',  'pending-grade', '✍️', 'Grade submissions')}
           ${int('report.html', 'grades',        '📊', 'View reports')}
-          ${ext(legacyUrl('interactions-admin.html'), 'interactions', '💡', 'Manage interactions')}
+          ${int('interactions.html', 'interactions', '💡', 'Manage interactions')}
           ${director ? int('roster.html', 'roster', '🧑‍🎓', 'Roster & sections') : ''}
           ${director ? ext(legacyUrl('admin.html'), 'export', '⬇️', 'Export grades') : ''}
         </div></div>`;

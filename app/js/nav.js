@@ -42,7 +42,7 @@ export function renderNav(ctx, opts = {}) {
   const linksHTML = links.map(l => `
     <a class="nav-link${l.key === active ? ' active' : ''}${l.external ? ' external' : ''}"
        href="${esc(l.href)}"${l.external ? ' target="_blank" rel="noopener"' : ''}>
-      ${iconHTML(l.icon, l.emoji, 'ic')}<span>${esc(l.label)}</span>
+      <span>${esc(l.label)}</span>
     </a>`).join('');
 
   // Faculty course switcher (only when more than one course is accessible)
@@ -57,13 +57,14 @@ export function renderNav(ctx, opts = {}) {
   mount.className = 'topnav';
   mount.innerHTML = `
     <div class="topnav-inner">
-      <a class="brand" href="dashboard.html">
-        <span class="brand-mark">${iconHTML('atom', '⚛️', 'ic')}</span>
-        <span>Preflights${courseTitle ? `<span class="brand-sub">${esc(courseTitle)}</span>` : ''}</span>
-      </a>
-      <button class="nav-burger" aria-label="Menu" data-burger>${iconHTML('menu', '☰', 'ic')}</button>
+      <div class="nav-left">
+        <a class="brand" href="dashboard.html">
+          <span class="brand-mark">${iconHTML('atom', '⚛️', 'ic')}</span>
+          <span>Preflights${courseTitle ? `<span class="brand-sub">${esc(courseTitle)}</span>` : ''}</span>
+        </a>
+        <button class="nav-burger" aria-label="Menu" data-burger>${iconHTML('menu', '☰', 'ic')}</button>
+      </div>
       <nav class="nav-links" id="nav-links">${linksHTML}</nav>
-      <span class="nav-spacer"></span>
       <div class="nav-right">
         ${switcherHTML}
         <button class="theme-toggle" data-theme-toggle><span data-theme-icon>🌙</span></button>
