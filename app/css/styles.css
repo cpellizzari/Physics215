@@ -107,8 +107,14 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  /* sticky footer: column layout so <main> can grow and pin the footer to the bottom */
+  display: flex;
+  flex-direction: column;
   transition: background 0.2s ease, color 0.2s ease;
 }
+/* main content grows to fill leftover height (keeps its max-width + horizontal centering) */
+main { flex: 1 0 auto; }
+.site-footer { flex: 0 0 auto; }
 
 /* Icon helper — <img class="ic"> sized inline; tints follow currentColor fallbacks */
 .ic      { width: 20px; height: 20px; object-fit: contain; vertical-align: middle; flex: none; }

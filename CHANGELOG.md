@@ -10,6 +10,12 @@ Newest entries first. Dates are `YYYY-MM-DD`.
 
 ## 2026-06-12 — Matthew Recker
 
+### Fixed — footer pinned to the bottom on short pages
+
+The attribution footer floated up under short content. Made `<body>` a flex column with
+`main { flex: 1 0 auto }` (a standard sticky-footer layout), so the content area grows to
+fill the viewport and the footer sits at the bottom — while still flowing below tall content.
+
 ### Added — native in-app interaction manager
 
 Ported the interaction CRUD off the legacy `interactions-admin.html` into the portal:
