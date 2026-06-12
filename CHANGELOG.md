@@ -41,6 +41,11 @@ just review and Save. Director-gated (instructors see a notice), values are only
 won't re-trigger. Full spec + a copy-paste builder for the artifact skill is in
 [`INTERACTION-PREFILL-LINK.md`](INTERACTION-PREFILL-LINK.md), including the load-bearing rule
 that the link's `id` slug must match the artifact's `#i=<slug>` report callback.
+**Re-using an existing slug** opens the listing in *Update — review & save* mode and patches
+it (no duplicate-id error); omitted params keep their current values — so regenerating an
+artifact and re-sending the link cleanly refreshes the existing interaction. Both the app
+manager and the legacy page honor this (the legacy page now awaits its row load first so the
+existing slug is detected reliably).
 
 ### Changed — full-bleed navbar
 

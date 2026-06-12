@@ -71,7 +71,8 @@ values yourself when you build it this way.
 ## What the director experiences
 
 1. Clicks the link (signs in if not already).
-2. The **"New interaction — review & save"** modal opens, prefilled with your values.
+2. The **"New interaction — review & save"** modal opens, prefilled with your values
+   (or **"Update — review & save"** if that slug already exists).
 3. Reviews — especially the **slug** and **artifact URL** — and clicks **Save**.
 4. Publishes when ready (or you set `pub=1` to prepublish).
 
@@ -84,5 +85,10 @@ re-open or resubmit it.
   just lands on the interactions page — the create form won't open for them.
 - Nothing is saved until the director clicks **Save** — the link only prefills the form, so
   a crafted link can't write to the database on its own.
+- **Re-using a slug updates that interaction.** If the `id` already exists, the link opens it
+  in **"Update — review & save"** mode and Save *patches* it (title / description / artifact
+  URL / published) instead of erroring on the duplicate id. Any field you omit from the link
+  keeps its existing value — so regenerating an artifact and re-sending the link (e.g. with a
+  fresh `url`) cleanly refreshes the existing listing rather than creating a duplicate.
 - Keep the slug **stable**: it's the permanent id and is referenced by every student report.
   Don't change it after the first reports come in.

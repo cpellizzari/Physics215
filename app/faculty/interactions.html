@@ -157,34 +157,35 @@
       document.getElementById('load-report').addEventListener('click', viewReport);
     }
 
+    // id set → update that existing slug; id null → insert a new row.
+    // prefill (from a query link) supplies the values to show; for any field the link
+    // omits we fall back to the existing row, so a re-posted link never wipes data.
     function openEdit(id, prefill) {
       editingId = id;
       document.getElementById('em-error').style.display = 'none';
       document.getElementById('f-course').innerHTML = ctx.courses
         .map(c => `<option value="${esc(c.course_id)}">${esc(c.course_title || c.course_id)}</option>`).join('');
       const idField = document.getElementById('f-id'), hint = document.getElementById('f-id-hint');
+      const existing = id ? vm.interactions.find(x => x.id === id) : null;
 
-      if (id) {
-        const it = vm.interactions.find(x => x.id === id);
-        document.getElementById('em-title').textContent = 'Edit interaction';
-        document.getElementById('f-course').value = it.course_id;
-        idField.value = it.id; idField.disabled = true;
-        hint.textContent = 'The id cannot be changed after creation.';
-        document.getElementById('f-title').value = it.title || '';
-        document.getElementById('f-desc').value = it.description || '';
-        document.getElementById('f-url').value = it.artifact_url || '';
-        document.getElementById('f-pub').checked = it.is_published;
-      } else {
-        document.getElementById('em-title').textContent = prefill ? 'New interaction — review & save' : 'New interaction';
-        idField.disabled = false;
-        hint.textContent = 'Lowercase letters, numbers, hyphens.';
-        document.getElementById('f-course').value = (prefill?.course && ctx.courses.some(c => c.course_id === prefill.course)) ? prefill.course : ctx.currentCourse;
-        idField.value = prefill?.id || '';
-        document.getElementById('f-title').value = prefill?.title || '';
-        document.getElementById('f-desc').value = prefill?.desc || '';
-        document.getElementById('f-url').value = prefill?.url || '';
-        document.getElementById('f-pub').checked = prefill?.pub === true;
-      }
+      const pick = (pv, ev) => (pv != null ? pv : (ev ?? ''));
+      const vCourse = prefill ? pick(prefill.course, existing?.course_id) : (existing?.course_id ?? ctx.currentCourse);
+      const vTitle  = prefill ? pick(prefill.title,  existing?.title)        : (existing?.title ?? '');
+      const vDesc   = prefill ? pick(prefill.desc,   existing?.description)  : (existing?.description ?? '');
+      const vUrl    = prefill ? pick(prefill.url,    existing?.artifact_url) : (existing?.artifact_url ?? '');
+      const vPub    = prefill ? (prefill.pub != null ? prefill.pub : !!existing?.is_published) : !!existing?.is_published;
+
+      document.getElementById('f-course').value = ctx.courses.some(c => c.course_id === vCourse) ? vCourse : ctx.currentCourse;
+      idField.value = id ?? (prefill?.id ?? '');
+      idField.disabled = !!id;                       // the slug is the PK — fixed once it exists
+      hint.textContent = id ? 'The id cannot be changed after creation.' : 'Lowercase letters, numbers, hyphens.';
+      document.getElementById('f-title').value = vTitle;
+      document.getElementById('f-desc').value  = vDesc;
+      document.getElementById('f-url').value   = vUrl;
+      document.getElementById('f-pub').checked = vPub;
+      document.getElementById('em-title').textContent =
+        prefill ? (id ? 'Update interaction — review & save' : 'New interaction — review & save')
+                : (id ? 'Edit interaction' : 'New interaction');
       document.getElementById('edit-modal').classList.add('open');
     }
 
@@ -257,10 +258,14 @@
       const p = new URLSearchParams(location.search);
       if (!p.has('new') && !p.has('id') && !p.has('title')) return;
       if (isDirector()) {
-        openEdit(null, {
-          id: p.get('id'), course: p.get('course'), title: p.get('title'),
+        const slug = p.get('id');
+        // If the slug already exists, open it in UPDATE mode so Save patches the existing
+        // listing instead of failing on the duplicate primary key.
+        const existing = slug ? vm.interactions.find(x => x.id === slug) : null;
+        openEdit(existing ? existing.id : null, {
+          id: slug, course: p.get('course'), title: p.get('title'),
           desc: p.get('desc'), url: p.get('url'),
-          pub: ['1', 'true', 'yes'].includes((p.get('pub') || '').toLowerCase()),
+          pub: p.has('pub') ? ['1', 'true', 'yes'].includes((p.get('pub') || '').toLowerCase()) : null,
         });
       }
       history.replaceState(null, '', location.pathname);   // clean URL so refresh won't re-open

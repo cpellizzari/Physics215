@@ -239,7 +239,7 @@ async function loadInstructor() {
   return true;
 }
 
-function enterMain() {
+async function enterMain() {
   document.getElementById('header-name').textContent = instructor.name;
   document.getElementById('header-name').style.display = '';
   showScreen('screen-main');
@@ -248,8 +248,8 @@ function enterMain() {
   } else {
     document.getElementById('viewonly-note').style.display = '';
   }
-  loadRows();
-  prefillFromQuery();   // open a prefilled "New interaction" modal if the URL carries one
+  await loadRows();       // populate window._interactions before checking for a prefill
+  prefillFromQuery();     // open a prefilled New/Update modal if the URL carries one
 }
 
 // ── List ──
@@ -364,21 +364,27 @@ function prefillFromQuery() {
     return;
   }
 
-  openEditModal(null);                       // build the modal in "create" mode first
+  // If the slug already exists, open it in EDIT mode so Save UPDATES the existing listing
+  // (avoids the duplicate-primary-key error); openEditModal(slug) loads the existing values,
+  // then we override only the fields the link actually provides.
+  const slug = p.get('id');
+  const existing = slug && window._interactions ? window._interactions[slug] : null;
+  openEditModal(existing ? slug : null);
   const setVal = (elId, v) => { if (v != null) document.getElementById(elId).value = v; };
 
   const course = p.get('course');
   if (course && manageableCourses.some(c => c.id === course)) {
     document.getElementById('f-course').value = course;
   }
-  if (p.has('id'))    setVal('f-id',    p.get('id'));
+  if (!existing && p.has('id')) setVal('f-id', slug);   // id is settable only on a new record
   if (p.has('title')) setVal('f-title', p.get('title'));
   if (p.has('desc'))  setVal('f-desc',  p.get('desc'));
   if (p.has('url'))   setVal('f-url',   p.get('url'));
   if (p.has('pub'))   document.getElementById('f-pub').checked =
     ['1', 'true', 'yes'].includes((p.get('pub') || '').toLowerCase());
 
-  document.getElementById('edit-modal-title').textContent = 'New interaction — review & save';
+  document.getElementById('edit-modal-title').textContent =
+    existing ? 'Update interaction — review & save' : 'New interaction — review & save';
   stripQuery();   // so a refresh doesn't re-open or resubmit
 }
 
