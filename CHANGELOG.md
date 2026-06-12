@@ -10,6 +10,23 @@ Newest entries first. Dates are `YYYY-MM-DD`.
 
 ## 2026-06-12 — Matthew Recker
 
+### Added — prefill links for the interaction manager
+
+`interactions-admin.html` now reads a query string and auto-opens the **New interaction**
+modal prefilled (`new=1&id=&course=&title=&desc=&url=&pub=`), so a Claude artifact can hand
+the director a one-click link that lands on the manager with everything filled in — they
+just review and Save. Director-gated (instructors see a notice), values are only prefilled
+(never auto-written), and the query is stripped from the URL after opening so a refresh
+won't re-trigger. Full spec + a copy-paste builder for the artifact skill is in
+[`INTERACTION-PREFILL-LINK.md`](INTERACTION-PREFILL-LINK.md), including the load-bearing rule
+that the link's `id` slug must match the artifact's `#i=<slug>` report callback.
+
+### Changed — full-bleed navbar
+
+The nav bar's contents now span the full viewport width (brand pinned hard left, theme
+toggle + user menu hard right) instead of being constrained to the centered page-content
+width. Page content below stays centered.
+
 ### Changed — all 35 icons wired in; navbar logo/controls refined
 
 Matthew added the real Flaticon PNGs, so the portal now uses the whole set (previously

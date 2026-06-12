@@ -125,6 +125,11 @@ An AI skill will later summarize trends by section.
 the director created — otherwise the foreign key rejects the write. This is the one manual
 coordination point between the claude.ai artifact and this repo.
 
+**Prefill links:** a Claude artifact can hand the director a one-click link that opens
+`interactions-admin.html` with the New Interaction form already filled in
+(`?new=1&id=&course=&title=&desc=&url=&pub=`); the director reviews and clicks Save. The
+link's `id` must equal the artifact's `#i=` slug. Full spec + builder: `INTERACTION-PREFILL-LINK.md`.
+
 **Security model:**
 - `report_markdown` is stored as an **inert blob** (≤100 KB) and is **sanitized with
   DOMPurify only at render time** — never executed. The `#r=` payload is user-controllable,

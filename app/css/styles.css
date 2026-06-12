@@ -126,10 +126,12 @@ body {
   backdrop-filter: saturate(180%) blur(14px);
   border-bottom: 1px solid var(--nav-border);
 }
+/* full-bleed: brand pinned to the far left, controls to the far right —
+   not constrained to the centered page-content width below it. */
 .topnav-inner {
-  max-width: 1240px; margin: 0 auto;
+  width: 100%;
   display: flex; align-items: center; gap: 6px;
-  height: 64px; padding: 0 20px;
+  height: 64px; padding: 0 24px;
 }
 .topnav .brand {
   display: flex; align-items: center; gap: 11px;
