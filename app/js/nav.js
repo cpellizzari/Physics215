@@ -15,9 +15,11 @@ const STUDENT_LINKS = [
   { key: 'interactions', label: 'Interactions', href: 'interactions.html', icon: 'interactions', emoji: '💡' },
 ];
 const FACULTY_LINKS = [
-  { key: 'dashboard',    label: 'Dashboard',    href: 'dashboard.html',         icon: 'dashboard',    emoji: '🏠' },
-  { key: 'interactions', label: 'Interactions', href: 'interactions.html',      icon: 'interactions', emoji: '💡' },
-  { key: 'gradebook',    label: 'Gradebook',    href: legacyUrl('admin.html'),  icon: 'grades',       emoji: '📊', external: true },
+  { key: 'dashboard',    label: 'Dashboard',    href: 'dashboard.html',         icon: 'dashboard',     emoji: '🏠' },
+  { key: 'grade',        label: 'Grade',        href: 'grade.html',             icon: 'pending-grade', emoji: '✍️' },
+  { key: 'report',       label: 'Report',       href: 'report.html',            icon: 'analytics',     emoji: '📈' },
+  { key: 'interactions', label: 'Interactions', href: 'interactions.html',      icon: 'interactions',  emoji: '💡' },
+  { key: 'admin',        label: 'Admin',        href: legacyUrl('admin.html'),  icon: 'settings',      emoji: '⚙️', external: true },
 ];
 
 export function renderNav(ctx, opts = {}) {

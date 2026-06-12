@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grade · Preflights</title>
+  <script>(function(){try{var s=localStorage.getItem('cp.theme');var m=s||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');if(m==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+  <link rel="stylesheet" href="../css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+</head>
+<body>
+  <header id="topnav"></header>
+  <main class="page-wide" id="main">
+    <div class="page-head"><h1>Grade</h1><div class="sub">Score submissions and publish grades to students.</div></div>
+
+    <div class="toolbar">
+      <div class="field grow"><label for="asgn">Assignment</label><select id="asgn"></select></div>
+      <div class="field"><label for="section">Section</label><select id="section"></select></div>
+      <label class="check-inline"><input type="checkbox" id="flag-filter"> Only flagged</label>
+    </div>
+
+    <div id="grade-container">
+      <div class="muted">Select an assignment to begin grading.</div>
+    </div>
+
+    <div class="grade-actions" id="grade-actions" style="display:none">
+      <button class="btn btn-primary" id="save-btn">Save draft</button>
+      <button class="btn btn-secondary" id="finalize-btn">Finalize &amp; publish</button>
+      <span id="save-status" class="muted" style="font-size:0.85em"></span>
+      <span class="grow"></span>
+      <span class="muted" style="font-size:0.78em">Yellow = full credit flagged for review · click a credit chip to cycle</span>
+    </div>
+  </main>
+
+  <div class="modal-backdrop" id="ext-modal">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-head"><h2>Grant extension</h2><button class="modal-close" data-close>×</button></div>
+      <p class="muted" style="font-size:0.88em;margin-bottom:14px" id="ext-name"></p>
+      <div class="field"><label for="ext-due">New due date &amp; time</label>
+        <input type="datetime-local" id="ext-due"></div>
+      <div class="error-msg" id="ext-error" style="min-height:1em"></div>
+      <div class="row" style="gap:10px;margin-top:8px">
+        <button class="btn btn-primary" id="ext-save">Save extension</button>
+        <button class="btn btn-secondary" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { bootstrap } from '../js/auth.js';
+    import { renderNav } from '../js/nav.js';
+    import { initTheme } from '../js/theme.js';
+    import { esc, lastFirst, fmtDate } from '../js/util.js';
+    import * as G from '../js/faculty-grade.js';
+
+    const ctx = await bootstrap({ require: 'faculty' });
+    if (!ctx) { /* redirected */ } else { init(); }
+
+    // ── State ──
+    let gradeData = {}, current = null, extensionMap = {}, scoreMap = {}, responseMap = {};
+    let maxTotal = 0, extSid = null;
+    let cachedMy = [], cachedAll = [];
+
+    const asgnSel = () => document.getElementById('asgn');
+    const secSel  = () => document.getElementById('section');
+    const container = () => document.getElementById('grade-container');
+
+    async function init() {
+      initTheme();
+      renderNav(ctx, { active: 'grade', onCourseChange: () => populate(true) });
+      // Persistent delegated listeners (container survives re-renders)
+      container().addEventListener('click', onClick);
+      container().addEventListener('input', onInput);
+      asgnSel().addEventListener('change', loadView);
+      secSel().addEventListener('change', loadView);
+      document.getElementById('flag-filter').addEventListener('change', applyFlagFilter);
+      document.getElementById('save-btn').addEventListener('click', doSave);
+      document.getElementById('finalize-btn').addEventListener('click', doFinalize);
+      wireExtModal();
+      await populate(false);
+    }
+
+    async function populate(reset) {
+      if (!ctx.currentCourse) { container().innerHTML = `<div class="alert alert-warn">No course access.</div>`; return; }
+      const [asgns, my, all] = await Promise.all([
+        G.gradeAssignmentList(ctx),
+        G.mySectionIds(ctx),
+        ctx.isDirectorForCurrent() ? G.allSectionIds(ctx) : Promise.resolve([]),
+      ]);
+      cachedMy = my; cachedAll = all;
+
+      const keepA = reset ? '' : asgnSel().value;
+      asgnSel().innerHTML = '<option value="">— select assignment —</option>' +
+        asgns.map(a => `<option value="${esc(a.id)}"${a.id === keepA ? ' selected' : ''}>${esc(a.title)}</option>`).join('');
+
+      const director = ctx.isDirectorForCurrent();
+      const list = director ? all : my;
+      secSel().innerHTML = '<option value="">— all my sections —</option>'
+        + (director ? '<option value="__all__">All sections (entire course)</option>' : '')
+        + list.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+
+      if (reset) { container().innerHTML = `<div class="muted">Select an assignment to begin grading.</div>`; document.getElementById('grade-actions').style.display = 'none'; }
+      else if (asgnSel().value) loadView();
+    }
+
+    function resolveSectionIds() {
+      const v = secSel().value;
+      return v === '__all__' ? cachedAll : v ? [v] : cachedMy;
+    }
+
+    async function loadView() {
+      const asgnId = asgnSel().value;
+      const actions = document.getElementById('grade-actions');
+      if (!asgnId) { container().innerHTML = `<div class="muted">Select an assignment to begin grading.</div>`; actions.style.display = 'none'; return; }
+      container().innerHTML = `<div class="center-load"><span class="spinner"></span><span>Loading…</span></div>`;
+
+      const data = await G.loadGradingData(ctx, asgnId, resolveSectionIds());
+      if (!data.assignment) { container().innerHTML = `<div class="alert alert-error">Assignment not found.</div>`; actions.style.display = 'none'; return; }
+      current = data.assignment; responseMap = data.responseMap; scoreMap = data.scoreMap; extensionMap = data.extensionMap;
+      maxTotal = (current.questions || []).reduce((s, q) => s + (isNaN(Number(q.points)) ? 0 : Number(q.points)), 0);
+
+      if (!data.students.length) { container().innerHTML = `<div class="alert alert-warn">No students found for the selected section(s).</div>`; actions.style.display = 'none'; return; }
+
+      gradeData = G.buildGradeData(current, data.students, responseMap, scoreMap);
+      render(data.students);
+      actions.style.display = 'flex';
+    }
+
+    const LABEL = { full: '✓ Full credit', warn: '⚠ Full credit — review', zero: '✗ No credit' };
+
+    function studentTotal(sid) {
+      return (current.questions || []).reduce((s, q) => s + (Number(gradeData[sid][q.id]?.score) || 0), 0);
+    }
+
+    function render(students) {
+      const qs = current.questions || [];
+      container().innerHTML = students.map(st => {
+        const sid = st.student_id;
+        const finalized = scoreMap[sid]?.finalized;
+        const ext = extensionMap[sid];
+        const total = studentTotal(sid);
+        const nm = esc(lastFirst(st.name));
+
+        const headExtras = `
+          ${finalized ? `<span class="tag" style="background:var(--alert-ok-bg);color:var(--alert-ok-fg)">✅ Finalized</span>
+            <button class="btn btn-ghost btn-sm" data-act="reopen" data-sid="${sid}" data-name="${nm}">Reopen</button>` : ''}
+          ${ext ? `<span class="ext-chip">📅 ${esc(fmtDate(ext))}</span>
+            <button class="btn btn-ghost btn-sm" data-act="ext" data-sid="${sid}" data-name="${nm}">Edit</button>
+            <button class="btn btn-ghost btn-sm" data-act="ext-remove" data-sid="${sid}" data-name="${nm}">Remove</button>`
+            : `<button class="btn btn-ghost btn-sm" data-act="ext" data-sid="${sid}" data-name="${nm}">Grant extension</button>`}`;
+
+        const rows = qs.map((q, idx) => {
+          const ans = responseMap[sid]?.[q.id] ?? '';
+          const hasAns = String(ans).trim().length > 0;
+          const gd = gradeData[sid][q.id];
+          const fig = q.figure_url ? `<div style="margin:6px 0 10px;text-align:center"><img src="${esc(q.figure_url)}" alt="Question figure"
+            style="max-width:100%;max-height:240px;border-radius:6px;border:1px solid var(--border)"></div>` : '';
+          const control = finalized
+            ? `<span class="credit-toggle ${gd.status}" disabled>${LABEL[gd.status]}</span>`
+            : `<button class="credit-toggle ${gd.status}" id="tg-${sid}-${esc(q.id)}" data-act="toggle" data-sid="${sid}" data-qid="${esc(q.id)}" data-pts="${q.points}">${LABEL[gd.status]}</button>`;
+          const feedback = finalized
+            ? (gd.feedback ? `<div class="feedback-block" style="margin-top:8px">${esc(gd.feedback)}</div>` : '')
+            : `<textarea class="feedback-input" data-act="feedback" data-sid="${sid}" data-qid="${esc(q.id)}" placeholder="Feedback for student (optional)…">${esc(gd.feedback)}</textarea>`;
+          const hint = (gd.status === 'warn' && !finalized) ? `<div class="warn-hint" data-hint>Yellow = full credit flagged for review. Click for red (no credit), again for green (confirmed).</div>` : '';
+          return `<div class="grade-q" data-status="${gd.status}" id="row-${sid}-${esc(q.id)}">
+            <div class="gq-head"><span class="gq-label">Q${idx + 1} · ${q.points} pts</span>${control}</div>
+            <div class="gq-text">${esc(q.text)}</div>${fig}
+            <div class="grade-answer ${hasAns ? '' : 'empty'}">${hasAns ? esc(String(ans)) : 'No answer submitted.'}</div>
+            ${feedback}${hint}
+          </div>`;
+        }).join('');
+
+        return `<div class="grade-card${finalized ? ' finalized' : ''}" id="gc-${sid}">
+          <div class="gc-head">
+            <span class="gc-name">${nm}</span><span class="tag">Sec ${esc(st.section_id)}</span>
+            ${headExtras}
+            <span class="gc-total" id="tot-${sid}">${total.toFixed(2)} / ${maxTotal.toFixed(2)} pts</span>
+          </div>
+          <div class="gc-body">${rows}</div>
+        </div>`;
+      }).join('');
+      applyFlagFilter();
+    }
+
+    // ── Events ──
+    function onClick(e) {
+      const el = e.target.closest('[data-act]');
+      if (!el) return;
+      const sid = Number(el.dataset.sid), name = el.dataset.name;
+      switch (el.dataset.act) {
+        case 'toggle': toggleCredit(sid, el.dataset.qid, Number(el.dataset.pts)); break;
+        case 'reopen': reopen(sid, name); break;
+        case 'ext': openExt(sid, name); break;
+        case 'ext-remove': removeExt(sid, name); break;
+      }
+    }
+    function onInput(e) {
+      const t = e.target.closest('textarea[data-act="feedback"]');
+      if (!t) return;
+      const gd = gradeData[Number(t.dataset.sid)]?.[t.dataset.qid];
+      if (gd) { gd.feedback = t.value; gd.modified = true; }
+    }
+
+    function toggleCredit(sid, qid, pts) {
+      const gd = gradeData[sid][qid];
+      gd.status = ({ full: 'warn', warn: 'zero', zero: 'full' })[gd.status] || 'full';
+      gd.score = gd.status === 'zero' ? 0 : pts;
+      gd.modified = true;
+
+      const btn = document.getElementById(`tg-${sid}-${qid}`);
+      if (btn) { btn.className = `credit-toggle ${gd.status}`; btn.textContent = LABEL[gd.status]; }
+      const row = document.getElementById(`row-${sid}-${qid}`);
+      if (row) {
+        row.dataset.status = gd.status;
+        let hint = row.querySelector('[data-hint]');
+        if (gd.status === 'warn' && !hint) {
+          hint = document.createElement('div'); hint.className = 'warn-hint'; hint.dataset.hint = '1';
+          hint.textContent = 'Yellow = full credit flagged for review. Click for red (no credit), again for green (confirmed).';
+          row.appendChild(hint);
+        } else if (gd.status !== 'warn' && hint) hint.remove();
+      }
+      const tot = document.getElementById(`tot-${sid}`);
+      if (tot) tot.textContent = `${studentTotal(sid).toFixed(2)} / ${maxTotal.toFixed(2)} pts`;
+      applyFlagFilter();
+    }
+
+    function applyFlagFilter() {
+      const on = document.getElementById('flag-filter').checked;
+      document.querySelectorAll('.grade-card').forEach(card => {
+        let flagged = false;
+        card.querySelectorAll('.grade-q').forEach(row => {
+          const s = row.dataset.status;
+          if (s === 'warn' || s === 'zero') flagged = true;
+          row.style.display = on && s === 'full' ? 'none' : '';
+        });
+        card.style.display = on && !flagged ? 'none' : '';
+      });
+    }
+
+    // ── Save / finalize / reopen ──
+    async function doSave() {
+      const st = document.getElementById('save-status'); st.textContent = 'Saving…';
+      const { error } = await G.saveScores(ctx, current, gradeData);
+      st.textContent = error ? '⚠ Save failed: ' + error.message : '✓ Saved draft';
+      setTimeout(() => { st.textContent = ''; }, 3000);
+    }
+    async function doFinalize() {
+      if (!confirm('Finalize grades? Students will see their scores and feedback immediately.')) return;
+      const st = document.getElementById('save-status'); st.textContent = 'Publishing…';
+      const { error } = await G.finalizeScores(ctx, current, gradeData);
+      st.textContent = error ? '⚠ Finalize failed' : '✅ Published to students';
+      setTimeout(loadView, 1200);
+    }
+    async function reopen(sid, name) {
+      if (!confirm(`Reopen grades for ${name}? Their scores are hidden until you re-finalize.`)) return;
+      const { error } = await G.reopenScore(current.id, sid);
+      if (error) { alert('Error reopening: ' + error.message); return; }
+      loadView();
+    }
+
+    // ── Extension modal ──
+    function wireExtModal() {
+      const m = document.getElementById('ext-modal');
+      m.addEventListener('click', (e) => { if (e.target.id === 'ext-modal' || e.target.dataset.close !== undefined) m.classList.remove('open'); });
+      document.getElementById('ext-save').addEventListener('click', saveExt);
+    }
+    function openExt(sid, name) {
+      extSid = sid;
+      document.getElementById('ext-name').textContent = name;
+      document.getElementById('ext-error').textContent = '';
+      const existing = extensionMap[sid] || current?.due_date_m || current?.due_date_t;
+      const inp = document.getElementById('ext-due');
+      if (existing) {
+        const d = new Date(existing), pad = n => String(n).padStart(2, '0');
+        inp.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } else inp.value = '';
+      document.getElementById('ext-modal').classList.add('open');
+    }
+    async function saveExt() {
+      const val = document.getElementById('ext-due').value;
+      const err = document.getElementById('ext-error');
+      if (!val) { err.textContent = 'Please select a date and time.'; return; }
+      const { error } = await G.setExtension(ctx, current.id, extSid, new Date(val).toISOString());
+      if (error) { err.textContent = 'Save failed: ' + error.message; return; }
+      document.getElementById('ext-modal').classList.remove('open');
+      loadView();
+    }
+    async function removeExt(sid, name) {
+      if (!confirm(`Remove extension for ${name}? They revert to the original due date.`)) return;
+      const { error } = await G.removeExtension(current.id, sid);
+      if (error) { alert('Failed to remove extension: ' + error.message); return; }
+      loadView();
+    }
+  </script>
+</body>
+</html>

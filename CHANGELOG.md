@@ -10,6 +10,27 @@ Newest entries first. Dates are `YYYY-MM-DD`.
 
 ## 2026-06-11 — Matthew Recker
 
+### Added — Grade & Report ported into the `app/` portal
+
+Second refactor pass: the two daily-use faculty tools now live natively in the portal
+shell (top nav, theme, course switcher), no longer requiring the legacy `admin.html`.
+
+- [`app/faculty/grade.html`](app/faculty/grade.html) + [`app/js/faculty-grade.js`](app/js/faculty-grade.js)
+  — the full grading workflow: assignment + section pickers, the 3-state credit toggle
+  (full → warn → zero), per-question feedback, "only flagged" filter, per-student totals,
+  save-draft / finalize-&-publish, reopen, and grant/edit/remove extensions. Same
+  `scores.question_scores` shape, `is_finalized` semantics, and `extensions` writes as the
+  legacy tab — a faithful port, restyled with theme tokens and delegated events.
+- [`app/faculty/report.html`](app/faculty/report.html) + [`app/js/faculty-report.js`](app/js/faculty-report.js)
+  — submission summary, "did not submit" list, and per-question cards showing the
+  `analysis_report` class summaries (from `/preflight-analyze`) plus raw responses with
+  show-names, random-10 sampling, and copy-to-clipboard.
+- Faculty **nav** now exposes Grade and Report directly; a single **Admin ↗** link covers
+  the still-legacy director tools. Dashboard quick-actions point Grade/Report at the new
+  internal pages.
+
+Still legacy (next passes): Assignments builder, Roster, Sections, Instructors, Export.
+
 ### Added — `app/` role-based portal (foundation pass)
 
 A coherent, role-aware rewrite of the front end living in a new [`app/`](app/) subfolder,

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report · Preflights</title>
+  <script>(function(){try{var s=localStorage.getItem('cp.theme');var m=s||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');if(m==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+  <link rel="stylesheet" href="../css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+</head>
+<body>
+  <header id="topnav"></header>
+  <main class="page-wide" id="main">
+    <div class="page-head"><h1>Report</h1><div class="sub">Submission summary, class misconceptions, and raw responses.</div></div>
+
+    <div class="toolbar">
+      <div class="field grow"><label for="asgn">Assignment</label><select id="asgn"></select></div>
+      <div class="field"><label for="section">Section</label><select id="section"></select></div>
+    </div>
+
+    <div id="report-container"><div class="muted">Select an assignment to view its report.</div></div>
+  </main>
+
+  <script type="module">
+    import { bootstrap } from '../js/auth.js';
+    import { renderNav } from '../js/nav.js';
+    import { initTheme } from '../js/theme.js';
+    import { esc, lastFirst } from '../js/util.js';
+    import { reportAssignmentList, mySectionIds, allSectionIds, loadReportData } from '../js/faculty-report.js';
+
+    const ctx = await bootstrap({ require: 'faculty' });
+    if (!ctx) { /* redirected */ } else { init(); }
+
+    let qs = [], reportAnswers = {}, sampleMode = {}, currentSample = {};
+    let cachedMy = [], cachedAll = [], curAsgnId = null;
+
+    const asgnSel = () => document.getElementById('asgn');
+    const secSel  = () => document.getElementById('section');
+    const container = () => document.getElementById('report-container');
+
+    async function init() {
+      initTheme();
+      renderNav(ctx, { active: 'report', onCourseChange: () => populate(true) });
+      asgnSel().addEventListener('change', loadView);
+      secSel().addEventListener('change', loadView);
+      container().addEventListener('click', onClick);
+      container().addEventListener('change', onChange);
+      await populate(false);
+    }
+
+    async function populate(reset) {
+      if (!ctx.currentCourse) { container().innerHTML = `<div class="alert alert-warn">No course access.</div>`; return; }
+      const [asgns, my, all] = await Promise.all([
+        reportAssignmentList(ctx), mySectionIds(ctx),
+        ctx.isDirectorForCurrent() ? allSectionIds(ctx) : Promise.resolve([]),
+      ]);
+      cachedMy = my; cachedAll = all;
+      const keepA = reset ? '' : asgnSel().value;
+      asgnSel().innerHTML = '<option value="">— select assignment —</option>' +
+        asgns.map(a => `<option value="${esc(a.id)}"${a.id === keepA ? ' selected' : ''}>${esc(a.title)}</option>`).join('');
+      const director = ctx.isDirectorForCurrent();
+      const list = director ? all : my;
+      secSel().innerHTML = '<option value="">— all my sections —</option>'
+        + (director ? '<option value="__all__">All sections (entire course)</option>' : '')
+        + list.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+      if (reset) container().innerHTML = `<div class="muted">Select an assignment to view its report.</div>`;
+      else if (asgnSel().value) loadView();
+    }
+
+    function resolveSectionIds() {
+      const v = secSel().value;
+      return v === '__all__' ? cachedAll : v ? [v] : cachedMy;
+    }
+
+    async function loadView() {
+      const asgnId = asgnSel().value;
+      curAsgnId = asgnId;
+      if (!asgnId) { container().innerHTML = `<div class="muted">Select an assignment to view its report.</div>`; return; }
+      container().innerHTML = `<div class="center-load"><span class="spinner"></span><span>Loading…</span></div>`;
+      const r = await loadReportData(ctx, asgnId, resolveSectionIds());
+      if (!r.assignment) { container().innerHTML = `<div class="alert alert-error">Assignment not found.</div>`; return; }
+      qs = r.qs; reportAnswers = r.reportAnswers; sampleMode = {}; currentSample = {};
+      render(r);
+      qs.forEach((q, idx) => renderResponses(idx));
+    }
+
+    function render(r) {
+      const total = r.students.length;
+      const summary = `
+        <div class="card">
+          <div class="card-title" style="margin-bottom:14px">Submission summary — ${esc(r.assignment.title)}</div>
+          <div class="report-stats">
+            <div class="report-stat"><div class="n" style="color:var(--green)">${r.submitted.length}</div><div class="l">Submitted</div></div>
+            <div class="report-stat"><div class="n" style="color:${r.missing.length ? 'var(--red)' : 'var(--muted)'}">${r.missing.length}</div><div class="l">Missing</div></div>
+            <div class="report-stat"><div class="n">${total}</div><div class="l">Total</div></div>
+          </div>
+        </div>`;
+
+      const missing = r.missing.length
+        ? `<div class="card" style="border-left:4px solid var(--red)">
+            <div class="card-title" style="color:var(--red);margin-bottom:12px">Did not submit (${r.missing.length})</div>
+            <div class="table-wrap"><table><thead><tr><th>Name</th><th>Section</th><th>Student ID</th></tr></thead>
+            <tbody>${r.missing.map(s => `<tr><td>${esc(lastFirst(s.name))}</td><td>${esc(s.section_id)}</td><td>${s.student_id}</td></tr>`).join('')}</tbody>
+            </table></div></div>`
+        : `<div class="alert alert-success">✓ All students submitted this assignment.</div>`;
+
+      const cards = r.qs.map((q, idx) => {
+        const ans = reportAnswers[idx];
+        const blank = ans.filter(a => !a.answer.trim()).length;
+        const parts = r.qSummaries[q.id] || [];
+        const summaryHTML = parts.length
+          ? `<ul class="summary-bullets">${parts.join('\n').split('\n').filter(l => l.trim()).map(l => `<li>${esc(l.replace(/^[•\-]\s*/, ''))}</li>`).join('')}</ul>`
+          : `<div class="summary-placeholder">No summary yet — run <code>/preflight-analyze ${esc(curAsgnId)}</code> to generate a class-level analysis.</div>`;
+        const sampleBtn = ans.length > 10 ? `<button class="btn btn-secondary btn-sm" data-sample="${idx}">🎲 Random 10</button>` : '';
+        return `<div class="card">
+          <div class="card-title">Q${idx + 1}: ${esc(q.text)}</div>
+          <div class="card-meta">${q.points} pt${q.points !== 1 ? 's' : ''} · ${ans.length - blank} answered · ${blank} blank</div>
+          <div style="margin-top:12px"><div class="q-eyebrow">Class summary &amp; misconceptions</div>${summaryHTML}</div>
+          <div style="margin-top:18px">
+            <div class="row wrap" style="justify-content:space-between;margin-bottom:8px">
+              <div class="q-eyebrow" style="margin:0">Raw responses</div>
+              <div class="q-controls">
+                <label class="check-inline" style="font-weight:500;color:var(--muted)"><input type="checkbox" data-attrib="${idx}"> Show names</label>
+                ${sampleBtn}
+                <button class="btn btn-secondary btn-sm" data-copy="${idx}">Copy</button>
+              </div>
+            </div>
+            <div class="responses-block" id="resp-${idx}"></div>
+          </div>
+        </div>`;
+      }).join('');
+
+      container().innerHTML = summary + missing + cards;
+    }
+
+    function renderResponses(idx) {
+      const block = document.getElementById(`resp-${idx}`);
+      if (!block) return;
+      const all = reportAnswers[idx] || [];
+      const showNames = container().querySelector(`[data-attrib="${idx}"]`)?.checked;
+      let shown = all;
+      if (sampleMode[idx] && all.length > 10) shown = [...all].sort(() => Math.random() - 0.5).slice(0, 10);
+      currentSample[idx] = shown;
+      block.innerHTML = shown.map(a => `<div class="response-bullet">
+        <span class="bullet-dot">•</span>
+        <span class="bullet-text">${a.answer.trim() ? esc(a.answer) : '<em class="muted">No answer submitted.</em>'}</span>
+        <span class="attrib-name" style="display:${showNames ? '' : 'none'}">&nbsp;(${esc(a.name)} · ${esc(a.section)})</span>
+      </div>`).join('') || `<div class="muted" style="font-size:0.86em">No submissions.</div>`;
+      const btn = container().querySelector(`[data-sample="${idx}"]`);
+      if (btn) btn.textContent = sampleMode[idx] ? `Show all (${all.length})` : '🎲 Random 10';
+    }
+
+    function onClick(e) {
+      const s = e.target.closest('[data-sample]');
+      if (s) { const i = +s.dataset.sample; sampleMode[i] = !sampleMode[i]; renderResponses(i); return; }
+      const c = e.target.closest('[data-copy]');
+      if (c) copyQuestion(+c.dataset.copy, c);
+    }
+    function onChange(e) {
+      const a = e.target.closest('[data-attrib]');
+      if (!a) return;
+      const idx = +a.dataset.attrib;
+      document.getElementById(`resp-${idx}`)?.querySelectorAll('.attrib-name').forEach(el => el.style.display = a.checked ? '' : 'none');
+    }
+
+    function copyQuestion(idx, btn) {
+      const showNames = container().querySelector(`[data-attrib="${idx}"]`)?.checked;
+      const q = qs[idx];
+      const answers = currentSample[idx] || reportAnswers[idx] || [];
+      const header = `Q${idx + 1}: ${q?.text || ''}\n${'─'.repeat(60)}\n\n`;
+      const body = answers.map(a => `• ${a.answer.trim() || '[No answer submitted]'}${showNames ? ` (${a.name} · ${a.section})` : ''}`).join('\n');
+      const text = header + body;
+      const flash = () => { const o = btn.textContent; btn.textContent = '✓ Copied'; setTimeout(() => btn.textContent = o, 1500); };
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(flash).catch(() => fallbackCopy(text, flash));
+      else fallbackCopy(text, flash);
+    }
+    function fallbackCopy(text, flash) {
+      const ta = document.createElement('textarea'); ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); flash(); } catch (_) {} document.body.removeChild(ta);
+    }
+  </script>
+</body>
+</html>
