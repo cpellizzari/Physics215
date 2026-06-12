@@ -8,6 +8,36 @@ Newest entries first. Dates are `YYYY-MM-DD`.
 
 ---
 
+## 2026-06-12 — Matthew Recker
+
+### Changed — cleaner, modern portal navbar
+
+Restyled the `app/` top navigation after Featurebase's clean aesthetic: a light,
+**translucent + blurred** sticky bar with a hairline bottom border (no heavy colored bar
+or drop shadow), muted medium-weight links that darken into a soft pill on hover/active, a
+subtle bordered brand mark, gradient-avatar user chip, and rounded controls. Added
+`--nav-*` theme tokens with a dark-translucent variant so it reads well in both modes.
+Pure CSS in [`app/css/styles.css`](app/css/styles.css) — no markup changes.
+
+### Added — Roster & Sections ported into the `app/` portal
+
+Director tooling now lives natively in the portal. New [`app/faculty/roster.html`](app/faculty/roster.html)
++ [`app/js/faculty-roster.js`](app/js/faculty-roster.js) combine the legacy Roster and
+Sections tabs into one page with **Students / Sections** sub-tabs:
+
+- **Students:** drag-&-drop CSV upload (validates `student_id` 3000xxxxxx + `[MT][135][A-D]`
+  section codes, creates sections before students), a 10-row preview, per-student
+  **edit-section** and **remove** (cascades scores/responses/extensions), and account
+  **provisioning** via `db.functions.invoke('provision-students')` (cleaner than the legacy
+  raw `fetch`, and avoids needing `SUPABASE_URL` in module scope).
+- **Sections:** instructor-assignment grid that saves instantly.
+
+Director-gated: the **Roster** nav link and the page body only appear for
+directors/global-admins (`nav.js` now supports `directorOnly` links). The faculty dashboard
+quick-action and nav point at the new internal page.
+
+Still legacy (next): Assignments builder, Instructor management, Export.
+
 ## 2026-06-11 — Matthew Recker
 
 ### Added — Grade & Report ported into the `app/` portal

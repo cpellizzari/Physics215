@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roster · Preflights</title>
+  <script>(function(){try{var s=localStorage.getItem('cp.theme');var m=s||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');if(m==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+  <link rel="stylesheet" href="../css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+</head>
+<body>
+  <header id="topnav"></header>
+  <main class="page-wide" id="main">
+    <div class="center-load"><span class="spinner"></span><span>Loading roster…</span></div>
+  </main>
+
+  <!-- Edit-section modal -->
+  <div class="modal-backdrop" id="sec-modal">
+    <div class="modal" style="max-width:380px">
+      <div class="modal-head"><h2>Change section</h2><button class="modal-close" data-close>×</button></div>
+      <p class="muted" style="font-size:0.88em;margin-bottom:14px" id="sm-name"></p>
+      <div class="field"><label for="sm-select">Section</label><select id="sm-select"></select></div>
+      <div class="error-msg" id="sm-error" style="min-height:1em"></div>
+      <div class="row" style="gap:10px;margin-top:8px">
+        <button class="btn btn-primary" id="sm-save">Save</button>
+        <button class="btn btn-secondary" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="csv-file" accept=".csv,text/csv" style="display:none">
+
+  <script type="module">
+    import { bootstrap } from '../js/auth.js';
+    import { renderNav } from '../js/nav.js';
+    import { initTheme } from '../js/theme.js';
+    import { esc, lastFirst } from '../js/util.js';
+    import * as R from '../js/faculty-roster.js';
+
+    const ctx = await bootstrap({ require: 'faculty' });
+    if (!ctx) { /* redirected */ } else { init(); }
+
+    let tab = 'students';
+    let pendingRoster = [];
+    let sectionIds = [];
+    let editSid = null;
+
+    async function init() {
+      initTheme();
+      renderNav(ctx, { active: 'roster', onCourseChange: () => render() });
+      wireModal();
+      document.getElementById('csv-file').addEventListener('change', (e) => {
+        const f = e.target.files[0]; if (f) readCsv(f);
+      });
+      render();
+    }
+
+    function render() {
+      const root = document.getElementById('main');
+      if (!ctx.isDirectorForCurrent()) {
+        root.innerHTML = `<div class="page-head"><h1>Roster</h1></div>
+          <div class="alert alert-info">Roster and section management is available to course directors and admins.
+          You can grade your assigned sections from <a href="grade.html">Grade</a>.</div>`;
+        return;
+      }
+      root.innerHTML = `
+        <div class="page-head"><h1>Roster &amp; sections</h1>
+          <div class="sub">${esc(ctx.courseTitleOf(ctx.currentCourse))} — manage enrollment and instructor assignments.</div></div>
+        <div class="subtabs">
+          <button class="subtab ${tab === 'students' ? 'active' : ''}" data-tab="students">Students</button>
+          <button class="subtab ${tab === 'sections' ? 'active' : ''}" data-tab="sections">Sections</button>
+        </div>
+        <div id="panel"></div>`;
+      root.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => { tab = b.dataset.tab; render(); }));
+      if (tab === 'students') renderStudents(); else renderSections();
+    }
+
+    // ───────────────────────── Students ─────────────────────────
+    async function renderStudents() {
+      const panel = document.getElementById('panel');
+      panel.innerHTML = `<div class="center-load"><span class="spinner"></span><span>Loading…</span></div>`;
+      const { students, sectionIds: secIds, total, unprovisioned } = await R.loadRoster(ctx);
+      sectionIds = secIds;
+
+      const prov = unprovisioned > 0
+        ? `<div class="row wrap" style="justify-content:space-between;gap:10px">
+             <span class="muted" style="font-size:0.9em">${unprovisioned} of ${total} students need auth accounts provisioned.</span>
+             <button class="btn btn-primary btn-sm" id="prov-btn">Provision ${unprovisioned} account${unprovisioned !== 1 ? 's' : ''}</button>
+           </div><div id="prov-result" style="font-size:0.85em;margin-top:8px"></div>`
+        : total > 0 ? `<span class="muted" style="font-size:0.9em">✓ All ${total} students have auth accounts.</span>`
+        : `<span class="muted" style="font-size:0.9em">Upload a roster to provision student accounts.</span>`;
+
+      const table = total
+        ? `<div class="table-wrap"><table>
+            <thead><tr><th>Student ID</th><th>Name</th><th>Section</th><th style="text-align:center">Auth</th><th></th></tr></thead>
+            <tbody>${students.map(s => `<tr>
+              <td>${s.student_id}</td>
+              <td>${esc(lastFirst(s.name))}</td>
+              <td>${esc(s.section_id)}</td>
+              <td style="text-align:center" class="${s.auth_user_id ? 'auth-yes' : 'auth-no'}">${s.auth_user_id ? '✓' : '—'}</td>
+              <td style="white-space:nowrap">
+                <button class="btn btn-ghost btn-sm" data-edit="${s.student_id}" data-name="${esc(lastFirst(s.name))}" data-section="${esc(s.section_id)}">Edit section</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--red)" data-remove="${s.student_id}" data-name="${esc(lastFirst(s.name))}">Remove</button>
+              </td></tr>`).join('')}</tbody></table></div>`
+        : `<div class="empty-state"><div class="es-ic">🧑‍🎓</div><h3>No students yet</h3><p>Upload a roster CSV to get started.</p></div>`;
+
+      panel.innerHTML = `
+        <div class="card">
+          <div class="card-title">Upload roster</div>
+          <div class="card-meta">CSV with columns <code>student_id, name, section</code>. Sections are created automatically.</div>
+          <div class="dropzone" id="dropzone">
+            <div class="dz-ic">📄</div><div><strong>Choose a CSV</strong> or drag &amp; drop it here</div>
+          </div>
+          <div id="csv-preview" style="display:none;margin-top:16px">
+            <div class="alert alert-info" id="csv-info"></div>
+            <div class="table-wrap" id="csv-table"></div>
+            <div class="row" style="gap:10px;margin-top:12px">
+              <button class="btn btn-primary" id="csv-commit">Upload these students</button>
+              <button class="btn btn-secondary" id="csv-cancel">Cancel</button>
+              <span id="csv-status" style="font-size:0.85em"></span>
+            </div>
+          </div>
+        </div>
+        <div class="card"><div class="card-title">Student accounts</div>
+          <div class="card-meta">Provision Supabase Auth logins (email = ID@usafa.edu, password = last 6 digits).</div>${prov}</div>
+        <div class="card"><div class="card-title">Enrolled students <span class="muted" style="font-weight:500">· ${total}</span></div>${table}</div>`;
+
+      // wire
+      const dz = document.getElementById('dropzone');
+      dz.addEventListener('click', () => document.getElementById('csv-file').click());
+      dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('drag-over'); });
+      dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+      dz.addEventListener('drop', (e) => { e.preventDefault(); dz.classList.remove('drag-over'); const f = e.dataTransfer.files[0]; if (f) readCsv(f); });
+      document.getElementById('prov-btn')?.addEventListener('click', doProvision);
+      panel.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openSecModal(+b.dataset.edit, b.dataset.name, b.dataset.section)));
+      panel.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', () => doRemove(+b.dataset.remove, b.dataset.name)));
+    }
+
+    function readCsv(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => previewCsv(e.target.result);
+      reader.readAsText(file);
+    }
+    function previewCsv(text) {
+      const { rows, errors } = R.parseRosterCsv(text);
+      if (errors.length) { alert('Could not import:\n' + errors.slice(0, 6).join('\n')); return; }
+      pendingRoster = rows;
+      const sects = [...new Set(rows.map(r => r.section_id))].join(', ');
+      document.getElementById('csv-info').textContent = `${rows.length} students — sections: ${sects}`;
+      document.getElementById('csv-table').innerHTML = `<table><thead><tr><th>Student ID</th><th>Name</th><th>Section</th></tr></thead>
+        <tbody>${rows.slice(0, 10).map(r => `<tr><td>${r.student_id}</td><td>${esc(r.name)}</td><td>${r.section_id}</td></tr>`).join('')}
+        ${rows.length > 10 ? `<tr><td colspan="3" class="muted">…and ${rows.length - 10} more</td></tr>` : ''}</tbody></table>`;
+      document.getElementById('csv-preview').style.display = '';
+      document.getElementById('csv-commit').onclick = doCommit;
+      document.getElementById('csv-cancel').onclick = () => { pendingRoster = []; document.getElementById('csv-preview').style.display = 'none'; document.getElementById('csv-file').value = ''; };
+    }
+    async function doCommit() {
+      if (!pendingRoster.length) return;
+      const st = document.getElementById('csv-status'); st.textContent = 'Uploading…';
+      const { error } = await R.commitRoster(ctx, pendingRoster);
+      if (error) { st.style.color = 'var(--red)'; st.textContent = '⚠ ' + error.message; return; }
+      st.style.color = 'var(--green)'; st.textContent = `✓ ${pendingRoster.length} students uploaded`;
+      pendingRoster = [];
+      setTimeout(() => { document.getElementById('csv-file').value = ''; renderStudents(); }, 1200);
+    }
+
+    async function doProvision() {
+      const btn = document.getElementById('prov-btn'), out = document.getElementById('prov-result');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner on-dark"></span> Provisioning…'; out.textContent = '';
+      const { data, error } = await R.provision(ctx);
+      btn.disabled = false; btn.textContent = 'Provision accounts';
+      const res = data || {};
+      if (error || res.error) { out.style.color = 'var(--red)'; out.textContent = '⚠ ' + (res.error || error.message); return; }
+      out.style.color = 'var(--green)';
+      out.textContent = `✓ ${res.count || 0} account${res.count !== 1 ? 's' : ''} created` + (res.errors?.length ? ` (${res.errors.length} failed — see console)` : '');
+      if (res.errors?.length) console.warn('Provision errors:', res.errors);
+      setTimeout(renderStudents, 1200);
+    }
+
+    async function doRemove(sid, name) {
+      if (!confirm(`Remove ${name} (${sid})?\n\nThis permanently deletes their record, all submissions, and all scores.`)) return;
+      const { error } = await R.removeStudent(sid);
+      if (error) { alert('Error removing student: ' + error.message); return; }
+      renderStudents();
+    }
+
+    // edit-section modal
+    function wireModal() {
+      const m = document.getElementById('sec-modal');
+      m.addEventListener('click', (e) => { if (e.target.id === 'sec-modal' || e.target.dataset.close !== undefined) m.classList.remove('open'); });
+      document.getElementById('sm-save').addEventListener('click', saveSection);
+    }
+    function openSecModal(sid, name, cur) {
+      editSid = sid;
+      document.getElementById('sm-name').textContent = `${name} (${sid})`;
+      document.getElementById('sm-select').innerHTML = sectionIds.map(s => `<option value="${esc(s)}"${s === cur ? ' selected' : ''}>${esc(s)}</option>`).join('');
+      document.getElementById('sm-error').textContent = '';
+      document.getElementById('sec-modal').classList.add('open');
+    }
+    async function saveSection() {
+      const sec = document.getElementById('sm-select').value;
+      const err = document.getElementById('sm-error');
+      const { error } = await R.updateStudentSection(editSid, sec);
+      if (error) { err.textContent = 'Error: ' + error.message; return; }
+      document.getElementById('sec-modal').classList.remove('open');
+      renderStudents();
+    }
+
+    // ───────────────────────── Sections ─────────────────────────
+    async function renderSections() {
+      const panel = document.getElementById('panel');
+      panel.innerHTML = `<div class="center-load"><span class="spinner"></span><span>Loading…</span></div>`;
+      const { sections, instructors } = await R.loadSections(ctx);
+      if (!sections.length) { panel.innerHTML = `<div class="empty-state"><div class="es-ic">🗂️</div><h3>No sections yet</h3><p>Upload a roster to create sections.</p></div>`; return; }
+      const grid = sections.map(s => `<div class="sec-assign">
+        <div class="sec-tag">${esc(s.id)}</div>
+        <select data-section="${esc(s.id)}">
+          <option value="">— unassigned —</option>
+          ${instructors.map(i => `<option value="${esc(i.id)}"${i.id === s.instructor_id ? ' selected' : ''}>${esc(i.name)}</option>`).join('')}
+        </select></div>`).join('');
+      panel.innerHTML = `<div class="card"><div class="card-title">Assign instructors</div>
+        <div class="card-meta">Each instructor grades the sections assigned here. Changes save instantly.</div>
+        <div class="sec-grid">${grid}</div>
+        <div id="sec-status" class="muted" style="font-size:0.82em;margin-top:12px"></div></div>`;
+      panel.querySelectorAll('select[data-section]').forEach(sel => sel.addEventListener('change', async () => {
+        const out = document.getElementById('sec-status'); out.textContent = 'Saving…';
+        const { error } = await R.assignInstructor(sel.dataset.section, sel.value);
+        out.textContent = error ? '⚠ ' + error.message : `✓ ${sel.dataset.section} updated`;
+        setTimeout(() => { out.textContent = ''; }, 2500);
+      }));
+    }
+  </script>
+</body>
+</html>

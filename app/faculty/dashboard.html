@@ -81,7 +81,7 @@
           ${int('grade.html',  'pending-grade', '✍️', 'Grade submissions')}
           ${int('report.html', 'analytics',     '📈', 'View reports')}
           ${ext(legacyUrl('interactions-admin.html'), 'interactions', '💡', 'Manage interactions')}
-          ${director ? ext(legacyUrl('admin.html'), 'roster', '🧑‍🎓', 'Roster & sections') : ''}
+          ${director ? int('roster.html', 'roster', '🧑‍🎓', 'Roster & sections') : ''}
           ${director ? ext(legacyUrl('admin.html'), 'export', '⬇️', 'Export grades') : ''}
         </div></div>`;
     }

@@ -18,6 +18,7 @@ const FACULTY_LINKS = [
   { key: 'dashboard',    label: 'Dashboard',    href: 'dashboard.html',         icon: 'dashboard',     emoji: '🏠' },
   { key: 'grade',        label: 'Grade',        href: 'grade.html',             icon: 'pending-grade', emoji: '✍️' },
   { key: 'report',       label: 'Report',       href: 'report.html',            icon: 'analytics',     emoji: '📈' },
+  { key: 'roster',       label: 'Roster',       href: 'roster.html',            icon: 'roster',        emoji: '🧑‍🎓', directorOnly: true },
   { key: 'interactions', label: 'Interactions', href: 'interactions.html',      icon: 'interactions',  emoji: '💡' },
   { key: 'admin',        label: 'Admin',        href: legacyUrl('admin.html'),  icon: 'settings',      emoji: '⚙️', external: true },
 ];
@@ -29,7 +30,8 @@ export function renderNav(ctx, opts = {}) {
     document.body.insertBefore(h, document.body.firstChild); return h;
   })();
 
-  const links = ctx.role === 'faculty' ? FACULTY_LINKS : STUDENT_LINKS;
+  const links = (ctx.role === 'faculty' ? FACULTY_LINKS : STUDENT_LINKS)
+    .filter(l => !l.directorOnly || ctx.isDirectorForCurrent?.());
   const name = ctx.studentRow?.name || ctx.instructorRow?.name || 'Account';
   const roleLabel = ctx.role === 'faculty'
     ? (ctx.instructorRow?.is_global_admin ? 'Global admin'

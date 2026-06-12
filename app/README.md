@@ -5,9 +5,9 @@ light/dark mode, and a dashboard landing page tailored to **students** vs **facu
 (instructor/director/admin). Static HTML/CSS/JS — no build step. **No database changes.**
 
 Dashboards, navigation, theming, auth, the AI lesson interactions, and the faculty
-**Grade** and **Report** tools all live here natively. The remaining director tools
-(roster / sections / assignment-builder / instructor management / export) still live on the
-legacy root page (`admin.html`) and are reached via out-links until ported in a later pass.
+**Grade**, **Report**, and **Roster/Sections** tools all live here natively. The remaining
+director tools (assignment builder / instructor management / export) still live on the
+legacy root page (`admin.html`) and are reached via the **Admin ↗** link until ported.
 
 ## Structure
 
@@ -16,10 +16,10 @@ app/
   index.html            Router — resolves role, forwards to the right dashboard
   login.html            Unified login (cadet ID → @usafa.edu, or instructor email)
   student/              dashboard · assignments (submit/review) · interactions
-  faculty/              dashboard (section roll-up) · grade · report · interactions
+  faculty/              dashboard · grade · report · roster (+sections) · interactions
   css/styles.css        Tokenized design system + dark theme
   js/                   supabase · auth · nav · theme · util · student-data
-                        faculty-data · faculty-grade · faculty-report
+                        faculty-data · faculty-grade · faculty-report · faculty-roster
   media/icons/          PNG icons (+ ICON-SEARCH-PROMPT.md). Missing → ic-dashboard.png → emoji.
 ```
 
@@ -57,7 +57,7 @@ so promotion needs no find/replace:
 
 ## Not yet ported
 
-Roster, sections, assignment builder, instructor management, and export still live on the
-legacy `admin.html` (reached via the **Admin ↗** nav link). Faculty section-scoping is
-enforced in client JS (mirroring the existing app), not RLS — true isolation would require
-new DB policies, which are out of scope here.
+Assignment builder, instructor management, and export still live on the legacy `admin.html`
+(reached via the **Admin ↗** nav link). Faculty section-scoping is enforced in client JS
+(mirroring the existing app), not RLS — true isolation would require new DB policies, which
+are out of scope here.
